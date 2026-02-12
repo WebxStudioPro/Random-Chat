@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Krish's Serverless Random Chat</title>
+    <script src="https://cdn.jsdelivr.net/npm/gun/gun.js"></script>
+    <style>
+        body { font-family: 'Courier New', monospace; background: #0d0d0d; color: #0f0; display: flex; flex-direction: column; height: 100vh; margin: 0; }
+        #header { padding: 20px; text-align: center; border-bottom: 1px solid #333; }
+        #chat-box { flex: 1; overflow-y: scroll; padding: 20px; display: flex; flex-direction: column; gap: 10px; }
+        .msg { padding: 10px; border-radius: 5px; max-width: 80%; word-wrap: break-word; }
+        .mine { background: #004400; align-self: flex-end; }
+        .stranger { background: #333; align-self: flex-start; }
+        #controls { padding: 20px; display: flex; gap: 10px; border-top: 1px solid #333; background: #111; }
+        input { flex: 1; padding: 10px; background: #222; border: 1px solid #444; color: white; outline: none; }
+        button { padding: 10px 20px; background: #0f0; color: black; border: none; cursor: pointer; font-weight: bold; }
+        button:disabled { background: #555; cursor: not-allowed; }
+        #status { font-size: 12px; color: #888; margin-top: 5px; }
+    </style>
+</head>
+<body>
+
+    <div id="header">
+        <h2>NO-SERVER RANDOM CHAT</h2>
+        <div id="status">Status: Disconnected</div>
+        <button id="findBtn" onclick="findStranger()">FIND STRANGER</button>
+    </div>
+
+    <div id="chat-box" id="messages">
+        </div>
+
+    <div id="controls" style="display:none;" id="inputArea">
+        <input type="text" id="msgInput" placeholder="Type a message..." onkeypress="handleEnter(event)">
+        <button onclick="sendMessage()">SEND</button>
+        <button onclick="disconnect()" style="background:red; color:white;">END</button>
+    </div>
+
+    <script>
+        // 1. INITIALIZATION (The Engine)
+        // Public Relay Peers ka list. Ye servers free hain aur community run karti hai.
+        const peers = ['https://gun-manhattan.herokuapp.com/gun'];
+        const gun = Gun(peers);
+        
+        let myID = Math.random().toString(36).substring(7); // Mera unique ID
+        let currentChatID = null;
+        let searching = false;
+        
+        const statusEl = document.getElementById('status');
+        const chatBox = document.getElementById('chat-box');
+        const inputArea = document.getElementById('controls');
+        const findBtn = document.getElementById('findBtn');
+
+        // 2. THE MATCHMAKING LOGIC (Deep Analysis: Atomic Locking)
+        async function findStranger() {
+            if(searching) return;
+            searching = true;
+            statusEl.innerText = "Scanning Global Network...";
+            findBtn.disabled = true;
+            chatBox.innerHTML = ''; // Clear purani chat
+
+            // "Lobby" node ko access karo
+            const lobby = gun.get('global-random-chat-lobby-v1');
+
+            // Check karo koi wait kar raha hai kya?
+            lobby.once((data) => {
+                if (data && data.peerID && data.peerID !== myID && (Date.now() - data.time < 10000)) {
+                    // SCENARIO 1: STRANGER MIL GAYA! (Jo < 10 second se wait kar raha hai)
+                    console.log("Found someone:", data.peerID);
+                    connectToPeer(data.peerID);
+                    
+                    // Lobby khali kar do taaki koi aur usse connect na kare (Race Condition Fix)
+                    lobby.put({ peerID: null, time: 0 }); 
+                } else {
+                    // SCENARIO 2: KOI NAHI HAI, MAIN WAIT KARUNGA
+                    console.log("No one found. Waiting in lobby...");
+                    statusEl.innerText = "Waiting for a stranger to connect...";
+                    
+                    // Apna ID lobby me daalo
+                    lobby.put({ peerID: myID, time: Date.now() });
+
+                    // Listen karo: Kya koi mere private channel pe aaya?
+                    gun.get('connections').get(myID).on((msg) => {
+                        if (msg && msg.from && searching) {
+                            connectToPeer(msg.from, true); // True = I was found
+                        }
+                    });
+                }
+            });
+        }
+
+        // 3. CONNECTION HANDSHAKE
+        function connectToPeer(strangerID, iWasFound = false) {
+            searching = false;
+            currentChatID = [myID, strangerID].sort().join('-'); // Unique Room ID (Alphabetical sort taaki dono same ID banaye)
+            
+            statusEl.innerText = "Connected to Stranger!";
+            findBtn.style.display = 'none';
+            inputArea.style.display = 'flex';
+
+            if (!iWasFound) {
+                // Agar maine dhunda hai, toh usko signal bhejo ki "Connect ho jao"
+                gun.get('connections').get(strangerID).put({ from: myID });
+            }
+
+            // Chat Channel Subscribe karo
+            startListening();
+        }
+
+        // 4. CHAT LOGIC (Real-time Sync)
+        function startListening() {
+            // Gun.js ka 'map()' function har naye message ko real-time me pakadta hai
+            gun.get('chats').get(currentChatID).map().on((msg, id) => {
+                // Duplicate check (Gun kabhi kabhi purana data bhejta hai)
+                if (document.getElementById(id)) return;
+                
+                const div = document.createElement('div');
+                div.id = id;
+                div.className = 'msg ' + (msg.sender === myID ? 'mine' : 'stranger');
+                div.innerText = msg.text;
+                chatBox.appendChild(div);
+                chatBox.scrollTop = chatBox.scrollHeight;
+            });
+        }
+
+        function sendMessage() {
+            const input = document.getElementById('msgInput');
+            const text = input.value.trim();
+            if (!text) return;
+
+            // Message ko Graph me 'put' karo. Ye automatic sync hoga.
+            gun.get('chats').get(currentChatID).set({
+                text: text,
+                sender: myID,
+                timestamp: Date.now()
+            });
+            input.value = '';
+        }
+
+        function handleEnter(e) {
+            if (e.key === 'Enter') sendMessage();
+        }
+
+        // 5. CLEANUP
+        function disconnect() {
+            location.reload(); // Simple refresh to reset
+        }
+    </script>
+</body>
+</html>
