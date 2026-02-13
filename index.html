@@ -223,6 +223,9 @@
 
         let myProfile = { name: 'Stranger', gender: 'Unknown' };
         
+        // 🔥 THE ULTIMATE FIX: Exact State Variable 🔥
+        let currentUserState = 'SETUP'; // Default state on open
+        
         function saveProfile() {
             if (!UI.termsCheckbox.checked) {
                 alert("⚠️ You must agree to the Terms & Conditions and confirm you are 18+ to enter the chat.");
@@ -239,6 +242,7 @@
             UI.chatBox.style.display = 'flex';
             UI.actionArea.style.display = 'flex'; 
             
+            currentUserState = 'LOBBY'; // Fixed State
             connectSignalingServer();
         }
 
@@ -303,6 +307,8 @@
             }
 
             isSearching = true;
+            currentUserState = 'SEARCHING'; // Fixed State
+            
             UI.findBtn.style.display = 'none';
             UI.chatBox.innerHTML = ''; 
             updateStatus('Monster Ears Active (Scanning 20 Slots)...', '#d29922');
@@ -408,6 +414,7 @@
 
         function setupDataChannelListeners(channel) {
             channel.onopen = () => {
+                currentUserState = 'CHATTING'; // Fixed State
                 UI.inputArea.style.display = 'flex';
                 const introPacket = JSON.stringify({ type: 'intro', profile: myProfile });
                 dataChannel.send(introPacket);
@@ -634,10 +641,8 @@
             
             cancelAudioRecording();
             
-            mqttClient.unsubscribe(PRIVATE_TOPIC);
-            mySessionId = 'peer_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-            PRIVATE_TOPIC = `krish_v17_private_${mySessionId}`;
-            mqttClient.subscribe(PRIVATE_TOPIC);
+            // 🔥 FIXED PHANTOM LOBBY BUG: ID is NOT regenerated on disconnect anymore.
+            currentUserState = 'LOBBY'; // Go back to lobby exactly
 
             UI.chatHeader.style.display = 'none';
             UI.typingIndicator.style.display = 'none';
@@ -656,32 +661,24 @@
             }
         }
 
-        // 🔥 ADMIN RADAR SYNC (FLAWLESS EDITION) 🔥
-        // Ye code tabhi se chalega jaise hi user website open karega, aur sirf UI ko read karke admin ko batayega!
+        // 🔥 ADMIN RADAR SYNC (FLAWLESS VARIABLE EDITION) 🔥
         const adminSyncClient = mqtt.connect('wss://broker.emqx.io:8084/mqtt');
         
-        function getExactState() {
-            if (UI.setupContainer.style.display !== 'none') return 'SETUP'; // Abhi ID bana raha hai
-            if (isSearching) return 'SEARCHING'; // Slot me dhoondh raha hai
-            if (UI.chatHeader.style.display === 'flex') return 'CHATTING'; // Chat kar raha hai
-            return 'LOBBY'; // Enter kar chuka hai par dhoondh nahi raha
-        }
-
         adminSyncClient.on('connect', () => {
             setInterval(() => {
                 let activeSlot = '0';
-                if (isSearching && myPublishSlot) {
+                if (currentUserState === 'SEARCHING' && myPublishSlot) {
                     activeSlot = myPublishSlot.split('_').pop();
                 }
                 
                 const payload = {
                     id: mySessionId,
-                    state: getExactState(),
+                    state: currentUserState,
                     slot: activeSlot
                 };
                 
                 adminSyncClient.publish('krish_v17_admin_radar_sync', JSON.stringify(payload));
-            }, 2500); // Har 2.5 second me exact status bhejega
+            }, 2000); // Super fast 2-second update
         });
     </script>
 </body>
