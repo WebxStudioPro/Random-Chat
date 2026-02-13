@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Global P2P Chat (V17 Monster Magnet)</title>
+    <title>Global P2P Chat (V17 Multimedia Magnet)</title>
     
     <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
 
@@ -45,21 +45,31 @@
         .message { padding: 12px 16px; border-radius: 18px; max-width: 85%; font-size: 15px; word-wrap: break-word; box-shadow: 0 2px 5px rgba(0,0,0,0.15); position: relative; line-height: 1.4;}
         .my-message { background: #238636; color: white; align-self: flex-end; border-bottom-right-radius: 4px; }
         .stranger-message { background: #21262d; color: #c9d1d9; border: 1px solid #30363d; align-self: flex-start; border-bottom-left-radius: 4px; }
-        .sender-name { font-size: 11px; color: #8b949e; margin-bottom: 5px; display: block; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;}
-        .my-name { color: #85e89d; text-align: right; }
+        
+        /* 🔥 NEW MEDIA CSS 🔥 */
+        .chat-img { max-width: 100%; border-radius: 12px; margin-top: 5px; display: block; }
+        .chat-audio { max-width: 220px; height: 40px; margin-top: 5px; outline: none; border-radius: 20px; }
         
         .system-message { text-align: center; color: #8b949e; font-size: 12px; margin: 15px 0; font-style: italic; background: rgba(33, 38, 45, 0.8); padding: 8px 15px; border-radius: 12px; align-self: center; width: fit-content;}
 
-        #action-area { padding: 15px; background: #161b22; border-top: 1px solid #30363d; display: none; flex-shrink: 0; padding-bottom: max(15px, env(safe-area-inset-bottom)); }
+        #action-area { padding: 12px; background: #161b22; border-top: 1px solid #30363d; display: none; flex-shrink: 0; padding-bottom: max(12px, env(safe-area-inset-bottom)); }
         #find-btn { width: 100%; padding: 16px; border-radius: 10px; background: #1f6feb; color: white; border: none; font-weight: bold; font-size: 16px; transition: 0.2s; text-transform: uppercase; cursor: pointer; letter-spacing: 1px; box-shadow: 0 4px 10px rgba(31, 111, 235, 0.3);}
         #find-btn:active { background: #388bfd; transform: scale(0.98); }
         
-        #input-container { display: none; gap: 10px; align-items: center; width: 100%; }
-        #msg-input { flex: 1; padding: 14px 18px; border-radius: 24px; border: 1px solid #30363d; background: #0d1117; color: white; outline: none; font-size: 15px; transition: border 0.2s;}
+        /* 🔥 NEW INPUT CONTAINER LAYOUT 🔥 */
+        #input-container { display: none; gap: 6px; align-items: center; width: 100%; }
+        
+        .media-btn { background: #21262d; color: white; border: 1px solid #30363d; border-radius: 50%; width: 42px; height: 42px; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; cursor: pointer; transition: 0.2s; }
+        .media-btn:active { background: #30363d; transform: scale(0.95); }
+        .mic-recording { background: #da3633 !important; border-color: #da3633 !important; animation: pulse 1s infinite; }
+        
+        #msg-input { flex: 1; padding: 12px 15px; border-radius: 24px; border: 1px solid #30363d; background: #0d1117; color: white; outline: none; font-size: 15px; transition: border 0.2s; min-width: 0;}
         #msg-input:focus { border-color: #8b949e; }
-        #send-btn { padding: 14px 22px; border-radius: 24px; background: #238636; color: white; border: none; font-weight: bold; cursor: pointer;}
+        
+        #send-btn { padding: 12px 18px; border-radius: 24px; background: #238636; color: white; border: none; font-weight: bold; cursor: pointer; flex-shrink: 0;}
         #send-btn:active { background: #2ea043; }
-        #disconnect-btn { padding: 0; border-radius: 50%; background: #da3633; color: white; border: none; font-weight: bold; width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; cursor: pointer; box-shadow: 0 4px 10px rgba(218, 54, 51, 0.3);}
+        
+        #disconnect-btn { padding: 0; border-radius: 50%; background: #da3633; color: white; border: none; font-weight: bold; width: 42px; height: 42px; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; cursor: pointer;}
         #disconnect-btn:active { background: #f85149; transform: scale(0.95);}
 
         #exit-modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.75); backdrop-filter: blur(4px); z-index: 100; display: none; align-items: center; justify-content: center; }
@@ -132,6 +142,12 @@
         <button id="find-btn" onclick="initiateMatchmaking()">CONNECT TO STRANGER</button>
         <div id="input-container">
             <button id="disconnect-btn" onclick="showExitModal()">✖</button>
+            
+            <button class="media-btn" id="photo-btn" onclick="document.getElementById('image-input').click()">📷</button>
+            <input type="file" id="image-input" accept="image/*" style="display: none;" onchange="handleImageSelection(event)">
+            
+            <button class="media-btn" id="mic-btn" onmousedown="startAudioRecording()" onmouseup="stopAudioRecording()" ontouchstart="startAudioRecording()" ontouchend="stopAudioRecording()">🎤</button>
+
             <input type="text" id="msg-input" placeholder="Type a message..." oninput="handleTypingEvent()" onkeypress="handleKeypress(event)">
             <button id="send-btn" onclick="sendDataChannelMessage()">SEND</button>
         </div>
@@ -153,21 +169,24 @@
             msgInput: document.getElementById('msg-input'),
             userNameInput: document.getElementById('user-name'),
             userGenderInput: document.getElementById('user-gender'),
-            exitModal: document.getElementById('exit-modal-overlay')
+            exitModal: document.getElementById('exit-modal-overlay'),
+            micBtn: document.getElementById('mic-btn')
         };
 
         let myProfile = { name: 'Stranger', gender: 'Unknown' };
         let typingTimer = null;
         let amITyping = false;
 
-        // 🔥 THE V17 MONSTER MAGNET ENGINE (FIREWALL BYPASS) 🔥
+        // Audio Recording Variables
+        let mediaRecorder;
+        let audioChunks = [];
+
+        // 🔥 THE V17 MONSTER MAGNET ENGINE (UNTOUCHED 20 SLOTS) 🔥
         const TOTAL_SLOTS = 20; 
         
-        // High entropy ID for safe Alpha/Beta Tie-breaking
         let mySessionId = 'peer_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
         let PRIVATE_TOPIC = `krish_v17_private_${mySessionId}`;
         
-        // We will store all 20 explicit topics here to bypass Wildcard Block
         let all20Slots = [];
         for(let i = 1; i <= TOTAL_SLOTS; i++) {
             all20Slots.push(`krish_v17_slot_${i}`);
@@ -227,7 +246,6 @@
             });
         }
 
-        // 🔥 DEPLOY MONSTER EARS (20 SLOTS AT ONCE) 🔥
         function initiateMatchmaking() {
             if (!mqttClient || !mqttClient.connected) {
                 alert("Server is still connecting. Please wait a second.");
@@ -240,19 +258,14 @@
             updateStatus('Monster Ears Active (Scanning 20 Slots)...', '#d29922');
             printSystemMessage('Deploying Omni-Directional Radar. Unbreakable connection...');
 
-            // 1. BYPASS FIREWALL: Explicitly subscribe to all 20 individual slots!
             mqttClient.subscribe(all20Slots);
             
-            // 2. DROP MAGNET PULSE IN ONE RANDOM SLOT
             const randomSlotNum = Math.floor(Math.random() * TOTAL_SLOTS) + 1;
             myPublishSlot = `krish_v17_slot_${randomSlotNum}`;
 
             const pulse = JSON.stringify({ type: 'magnet_pulse', senderId: mySessionId });
-            
-            // Shout immediately
             mqttClient.publish(myPublishSlot, pulse);
 
-            // Keep shouting every 1.5 seconds so anyone arriving late hears you instantly
             clearInterval(magnetPulseTimer);
             magnetPulseTimer = setInterval(() => {
                 if (isSearching) {
@@ -264,19 +277,13 @@
         function lockEngineAndHideEars() {
             isSearching = false;
             clearInterval(magnetPulseTimer);
-            // Instantly drop all 20 listening slots to save bandwidth
             mqttClient.unsubscribe(all20Slots);
         }
 
-        // 🔥 V17: THE FLAWLESS ALPHA/BETA LOCK 🔥
         async function handleSignalingData(payload) {
             
-            // 1. I HEAR A PULSE ON ANY OF THE 20 SLOTS
             if (payload.type === 'magnet_pulse' && payload.senderId !== mySessionId && isSearching) {
-                
-                // Tie-Breaker: Safe Lexicographical comparison for identical length IDs
                 if (mySessionId > payload.senderId) {
-                    // I AM ALPHA. I execute the pull.
                     lockEngineAndHideEars();
                     updateStatus('Monster Locked! Initiating private link...', '#58a6ff');
                     
@@ -286,19 +293,15 @@
                     const offer = await peerConnection.createOffer();
                     await peerConnection.setLocalDescription(offer);
                     sendSignalingPayload(payload.senderId, { type: 'rtc_offer', offer: offer, senderId: mySessionId });
-                } else {
-                    // I AM BETA. I wait safely for the pull. Prevents dual-offers!
                 }
             }
 
-            // 2. I GET PULLED (Beta Action)
             if (payload.type === 'magnet_pull' && payload.senderId !== mySessionId && isSearching) {
                 lockEngineAndHideEars();
                 updateStatus('Pulled by Monster Magnet! Preparing link...', '#58a6ff');
                 initializeWebRTC(payload.senderId);
             }
 
-            // 3. I RECEIVE AN OFFER (From Alpha)
             if (payload.type === 'rtc_offer' && payload.senderId !== mySessionId) {
                 if (isSearching) { lockEngineAndHideEars(); }
                 if (!peerConnection) { initializeWebRTC(payload.senderId); }
@@ -311,17 +314,14 @@
                 sendSignalingPayload(payload.senderId, { type: 'rtc_answer', answer: answer, senderId: mySessionId });
             }
 
-            // 4. I RECEIVE AN ANSWER (From Beta)
             if (payload.type === 'rtc_answer' && payload.senderId !== mySessionId) {
                 await peerConnection.setRemoteDescription(new RTCSessionDescription(payload.answer));
             }
 
-            // 5. SOMEONE STOLE THE TARGET
             if (payload.type === 'peer_busy') {
                 terminateSession(false, "⚠️ Stranger got connected to someone else. Please click CONNECT TO STRANGER again.");
             }
 
-            // 6. ICE EXCHANGES
             if (payload.type === 'ice_candidate' && payload.senderId !== mySessionId) {
                 try { await peerConnection.addIceCandidate(new RTCIceCandidate(payload.candidate)); } 
                 catch (e) { console.error('ICE Error', e); }
@@ -353,12 +353,10 @@
             };
         }
 
-        // Send to Private Frequency Only
         function sendSignalingPayload(targetId, payloadObj) {
             mqttClient.publish(`krish_v17_private_${targetId}`, JSON.stringify(payloadObj));
         }
 
-        // --- DATA CHANNEL COMMUNICATIONS ---
         function setupDataChannelListeners(channel) {
             channel.onopen = () => {
                 UI.inputArea.style.display = 'flex';
@@ -381,11 +379,18 @@
                         } else {
                             UI.topGender.className = 'gender-male';
                         }
-
                         printSystemMessage(`You are chatting securely with ${data.profile.name}. Say Hi!`);
                     } 
                     else if (data.type === 'chat') {
-                        renderMessage(data.content, 'stranger');
+                        renderMessage(data.content, 'stranger', 'text');
+                        UI.typingIndicator.style.display = 'none'; 
+                    }
+                    else if (data.type === 'image') {
+                        renderMessage(data.content, 'stranger', 'image');
+                        UI.typingIndicator.style.display = 'none'; 
+                    }
+                    else if (data.type === 'audio') {
+                        renderMessage(data.content, 'stranger', 'audio');
                         UI.typingIndicator.style.display = 'none'; 
                     }
                     else if (data.type === 'typing') {
@@ -396,7 +401,7 @@
                         }
                     }
                 } catch(e) {
-                    renderMessage(event.data, 'stranger');
+                    renderMessage(event.data, 'stranger', 'text');
                 }
             };
 
@@ -405,12 +410,10 @@
 
         function handleTypingEvent() {
             if (!dataChannel || dataChannel.readyState !== 'open') return;
-
             if (!amITyping) {
                 amITyping = true;
                 dataChannel.send(JSON.stringify({ type: 'typing', status: true }));
             }
-
             clearTimeout(typingTimer);
             typingTimer = setTimeout(() => {
                 amITyping = false;
@@ -429,14 +432,100 @@
             clearTimeout(typingTimer);
             dataChannel.send(JSON.stringify({ type: 'typing', status: false }));
 
-            renderMessage(text, 'mine');
+            renderMessage(text, 'mine', 'text');
             UI.msgInput.value = '';
         }
 
-        function renderMessage(text, type) {
+        // 🔥 NEW: ON-THE-FLY IMAGE COMPRESSOR & SENDER 🔥
+        function handleImageSelection(event) {
+            const file = event.target.files[0];
+            if (!file || !dataChannel || dataChannel.readyState !== 'open') return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = new Image();
+                img.src = e.target.result;
+                img.onload = function() {
+                    // Compress Image to prevent WebRTC pipe burst
+                    const canvas = document.createElement('canvas');
+                    const MAX_WIDTH = 500;
+                    const scaleSize = MAX_WIDTH / img.width;
+                    canvas.width = MAX_WIDTH;
+                    canvas.height = img.height * scaleSize;
+                    
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                    
+                    // Convert to Base64 Text (Quality 0.5)
+                    const base64Img = canvas.toDataURL('image/jpeg', 0.5);
+                    
+                    // Send over WebRTC
+                    dataChannel.send(JSON.stringify({ type: 'image', content: base64Img, profile: myProfile }));
+                    renderMessage(base64Img, 'mine', 'image');
+                }
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // 🔥 NEW: AUDIO RECORDER & SENDER 🔥
+        async function startAudioRecording() {
+            if (!dataChannel || dataChannel.readyState !== 'open') return;
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream);
+                audioChunks = [];
+
+                mediaRecorder.ondataavailable = event => {
+                    audioChunks.push(event.data);
+                };
+
+                mediaRecorder.onstop = () => {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                    const reader = new FileReader();
+                    reader.readAsDataURL(audioBlob); 
+                    reader.onloadend = () => {
+                        const base64Audio = reader.result;
+                        dataChannel.send(JSON.stringify({ type: 'audio', content: base64Audio, profile: myProfile }));
+                        renderMessage(base64Audio, 'mine', 'audio');
+                    };
+                    // Stop all microphone tracks to turn off the red dot
+                    stream.getTracks().forEach(track => track.stop());
+                };
+
+                mediaRecorder.start();
+                UI.micBtn.classList.add('mic-recording'); // Add red pulse effect
+            } catch (err) {
+                alert("Please allow Microphone access to send voice notes!");
+            }
+        }
+
+        function stopAudioRecording() {
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+                UI.micBtn.classList.remove('mic-recording');
+            }
+        }
+
+        // 🔥 UPDATED RENDERER FOR MEDIA 🔥
+        function renderMessage(content, type, msgFormat = 'text') {
             const wrapper = document.createElement('div');
             wrapper.className = `message ${type === 'mine' ? 'my-message' : 'stranger-message'}`;
-            wrapper.innerText = text;
+            
+            if (msgFormat === 'text') {
+                wrapper.innerText = content;
+            } else if (msgFormat === 'image') {
+                const img = document.createElement('img');
+                img.src = content;
+                img.className = 'chat-img';
+                wrapper.appendChild(img);
+            } else if (msgFormat === 'audio') {
+                const audio = document.createElement('audio');
+                audio.controls = true;
+                audio.src = content;
+                audio.className = 'chat-audio';
+                wrapper.appendChild(audio);
+            }
+            
             UI.chatBox.appendChild(wrapper);
             UI.chatBox.scrollTop = UI.chatBox.scrollHeight;
         }
