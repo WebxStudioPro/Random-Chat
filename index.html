@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Global P2P Chat (Magnet Engine + Premium UX)</title>
+    <title>Global P2P Chat (Double Magnet Engine V15)</title>
     
     <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
 
     <style>
         * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, sans-serif; margin: 0; }
         
-        /* 🔥 THE VIEWPORT FIX: 100dvh prevents bottom bar hiding on Android/iOS 🔥 */
+        /* THE VIEWPORT FIX: 100dvh prevents bottom bar hiding on Android/iOS */
         body { background-color: #0d1117; color: #c9d1d9; display: flex; flex-direction: column; height: 100vh; height: 100dvh; overflow: hidden; }
         
         #header { padding: 15px; background: #161b22; text-align: center; border-bottom: 1px solid #30363d; box-shadow: 0 4px 6px rgba(0,0,0,0.3); z-index: 10; min-height: 70px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;}
@@ -123,7 +123,7 @@
     </div>
 
     <div id="chat-window">
-        <div class="system-message">Engine Online. Ready for Magnet Search.</div>
+        <div class="system-message">V15 Double Magnet Engine Online. Shield Active.</div>
     </div>
     
     <div id="action-area">
@@ -155,15 +155,15 @@
         };
 
         let myProfile = { name: 'Stranger', gender: 'Unknown' };
-        
         let typingTimer = null;
         let amITyping = false;
 
-        // 🔥 THE V14 MAGNET ENGINE VARIABLES 🔥
-        const GLOBAL_RADAR = 'krish_v14_global_magnet_radar'; 
+        // 🔥 V15 DOUBLE MAGNET ENGINE VARIABLES (20 SLOTS) 🔥
+        const TOTAL_SLOTS = 20; 
         let mySessionId = 'peer_' + Math.random().toString(36).substr(2, 9);
-        let PRIVATE_TOPIC = `krish_v14_private_${mySessionId}`;
-        let radarInterval = null; // Timer to keep sending Magnet Pulses
+        let PRIVATE_TOPIC = `krish_v15_private_${mySessionId}`;
+        let currentRadarSlot = '';
+        let magnetJumpTimer = null; 
         
         let mqttClient = null;
         let peerConnection = null;
@@ -203,7 +203,7 @@
 
             mqttClient.on('connect', () => {
                 updateStatus(`Welcome, ${myProfile.name}. Ready to search.`, '#3fb950');
-                mqttClient.subscribe(PRIVATE_TOPIC); // Always listen on private frequency
+                mqttClient.subscribe(PRIVATE_TOPIC); // Shielded Private Frequency
             });
 
             mqttClient.on('message', async (topic, message) => {
@@ -216,7 +216,7 @@
             });
         }
 
-        // 🔥 V14: START MAGNET RADAR 🔥
+        // 🔥 START V15 HYPER-JUMP MAGNET SCANNING 🔥
         function initiateMatchmaking() {
             if (!mqttClient || !mqttClient.connected) {
                 alert("Server is still connecting. Please wait a second.");
@@ -226,83 +226,96 @@
             isSearching = true;
             UI.findBtn.style.display = 'none';
             UI.chatBox.innerHTML = ''; 
-            updateStatus('Scanning Magnet Radar...', '#d29922');
-            printSystemMessage('Searching the global radar...');
+            printSystemMessage('Engaging Double Magnet Engine (20 Slots Shield)...');
 
-            // Join the Global Radar Room
-            mqttClient.subscribe(GLOBAL_RADAR);
-            
-            // Send the first tiny pull signal
-            const pulse = JSON.stringify({ type: 'magnet_pulse', senderId: mySessionId });
-            mqttClient.publish(GLOBAL_RADAR, pulse);
-
-            // If alone, keep sending a tiny signal every 2 seconds
-            clearInterval(radarInterval);
-            radarInterval = setInterval(() => {
-                if (isSearching) {
-                    mqttClient.publish(GLOBAL_RADAR, pulse);
-                }
-            }, 2000);
+            const initialSlot = Math.floor(Math.random() * TOTAL_SLOTS) + 1;
+            scanMagnetSlot(initialSlot);
         }
 
-        // 🔥 V14: THE MAGNET PULL & PRIVATE OFFLOADING 🔥
+        function scanMagnetSlot(slotNumber) {
+            if (!isSearching) return; 
+
+            // Leave the previous slot to prevent server tracking overload
+            if (currentRadarSlot) { mqttClient.unsubscribe(currentRadarSlot); }
+
+            currentRadarSlot = `krish_v15_magnet_slot_${slotNumber}`;
+            updateStatus(`Scanning Magnet Sector #${slotNumber}...`, '#d29922');
+
+            mqttClient.subscribe(currentRadarSlot);
+            
+            // Drop the Magnet Pulse
+            const pulse = JSON.stringify({ type: 'magnet_pulse', senderId: mySessionId });
+            mqttClient.publish(currentRadarSlot, pulse);
+
+            clearTimeout(magnetJumpTimer);
+            
+            // 🔥 HYPER-JUMP SPEED: 400ms to 600ms (Lightning Fast)
+            const jumpDelay = 400 + (Math.random() * 200); 
+
+            magnetJumpTimer = setTimeout(() => {
+                if (isSearching) {
+                    let nextSlot = Math.floor(Math.random() * TOTAL_SLOTS) + 1;
+                    scanMagnetSlot(nextSlot);
+                }
+            }, jumpDelay);
+        }
+
+        function stopMagnetJumping() {
+            isSearching = false;
+            clearTimeout(magnetJumpTimer);
+            if (currentRadarSlot) { mqttClient.unsubscribe(currentRadarSlot); }
+        }
+
+        // 🔥 THE PERFECT HANDSHAKE (ZERO GLARE BUG) 🔥
         async function handleSignalingData(payload) {
             
-            // 1. I am searching, and I detected someone's Magnet Pulse on the Radar.
+            // 1. I HEAR A PULSE: I grab them, I pull, and I become the "Offerer"
             if (payload.type === 'magnet_pulse' && payload.senderId !== mySessionId && isSearching) {
-                // Instantly reply to their PRIVATE frequency (Not the global radar)
+                stopMagnetJumping(); 
+                updateStatus('Magnet Locked! Initiating link...', '#58a6ff');
+                
+                // Pull them privately
                 sendSignalingPayload(payload.senderId, { type: 'magnet_pull', senderId: mySessionId });
+                
+                // I take charge and create WebRTC Offer
+                initializeWebRTC(payload.senderId);
+                const offer = await peerConnection.createOffer();
+                await peerConnection.setLocalDescription(offer);
+                sendSignalingPayload(payload.senderId, { type: 'rtc_offer', offer: offer, senderId: mySessionId });
             }
 
-            // 2. Someone responded to my pulse and pulled me!
-            if (payload.type === 'magnet_pull' && payload.senderId !== mySessionId) {
-                if (isSearching) {
-                    // Lock my engine
-                    isSearching = false; 
-                    clearInterval(radarInterval); 
-                    mqttClient.unsubscribe(GLOBAL_RADAR); // Leave radar to prevent bheed
-                    
-                    updateStatus('Magnet Locked! Linking securely...', '#58a6ff');
-                    initializeWebRTC(payload.senderId);
-                    
-                    const offer = await peerConnection.createOffer();
-                    await peerConnection.setLocalDescription(offer);
-                    // Send heavy data Privately
-                    sendSignalingPayload(payload.senderId, { type: 'rtc_offer', offer: offer, senderId: mySessionId });
-                } else {
-                    // I am already pulled by someone else! Send Busy.
-                    sendSignalingPayload(payload.senderId, { type: 'peer_busy', senderId: mySessionId });
-                }
+            // 2. I GET PULLED: I stop searching, and I patiently WAIT for the offer
+            if (payload.type === 'magnet_pull' && payload.senderId !== mySessionId && isSearching) {
+                stopMagnetJumping();
+                updateStatus('Pulled by Magnet! Preparing link...', '#58a6ff');
+                initializeWebRTC(payload.senderId);
+                // I do NOT create an offer here. This fixes the Glare Bug!
             }
 
-            // 3. I received their Private WebRTC Offer
+            // 3. I RECEIVE AN OFFER: I accept and reply with an Answer
             if (payload.type === 'rtc_offer' && payload.senderId !== mySessionId) {
-                if (isSearching) {
-                    isSearching = false; 
-                    clearInterval(radarInterval); 
-                    mqttClient.unsubscribe(GLOBAL_RADAR);
-                    
-                    updateStatus('Linking securely...', '#58a6ff');
-                    initializeWebRTC(payload.senderId);
-                    await peerConnection.setRemoteDescription(new RTCSessionDescription(payload.offer));
-                    
-                    const answer = await peerConnection.createAnswer();
-                    await peerConnection.setLocalDescription(answer);
-                    sendSignalingPayload(payload.senderId, { type: 'rtc_answer', answer: answer, senderId: mySessionId });
-                } else {
-                    sendSignalingPayload(payload.senderId, { type: 'peer_busy', senderId: mySessionId });
-                }
+                // If I somehow missed the pull, stop jumping and init
+                if (isSearching) { stopMagnetJumping(); }
+                if (!peerConnection) { initializeWebRTC(payload.senderId); }
+                
+                updateStatus('Securing Connection...', '#58a6ff');
+                await peerConnection.setRemoteDescription(new RTCSessionDescription(payload.offer));
+                
+                const answer = await peerConnection.createAnswer();
+                await peerConnection.setLocalDescription(answer);
+                sendSignalingPayload(payload.senderId, { type: 'rtc_answer', answer: answer, senderId: mySessionId });
+            }
+
+            // 4. I RECEIVE AN ANSWER: Connection Complete!
+            if (payload.type === 'rtc_answer' && payload.senderId !== mySessionId) {
+                await peerConnection.setRemoteDescription(new RTCSessionDescription(payload.answer));
             }
 
             if (payload.type === 'peer_busy') {
                 terminateSession(false, "⚠️ Stranger got connected to someone else. Please click CONNECT TO STRANGER again.");
             }
 
-            if (payload.type === 'rtc_answer') {
-                await peerConnection.setRemoteDescription(new RTCSessionDescription(payload.answer));
-            }
-
-            if (payload.type === 'ice_candidate') {
+            if (payload.type === 'ice_candidate' && payload.senderId !== mySessionId) {
                 try { await peerConnection.addIceCandidate(new RTCIceCandidate(payload.candidate)); } 
                 catch (e) { console.error('ICE Error', e); }
             }
@@ -333,9 +346,9 @@
             };
         }
 
-        // Send all heavy data and handshakes to a direct Private Topic
+        // Send all heavy data to strictly Private Topic
         function sendSignalingPayload(targetId, payloadObj) {
-            mqttClient.publish(`krish_v14_private_${targetId}`, JSON.stringify(payloadObj));
+            mqttClient.publish(`krish_v15_private_${targetId}`, JSON.stringify(payloadObj));
         }
 
         // --- METADATA & TYPING ENGINE LOGIC ---
@@ -439,17 +452,15 @@
             if (peerConnection) { peerConnection.close(); }
             peerConnection = null; 
             dataChannel = null; 
-            isSearching = false;
             
-            // Clean Intervals
-            clearInterval(radarInterval); 
+            stopMagnetJumping(); // Fully clear scanning
             clearTimeout(typingTimer);
             amITyping = false;
             
-            mqttClient.unsubscribe(GLOBAL_RADAR); // Ensure we leave radar
+            // Re-arm private frequency
             mqttClient.unsubscribe(PRIVATE_TOPIC);
             mySessionId = 'peer_' + Math.random().toString(36).substr(2, 9);
-            PRIVATE_TOPIC = `krish_v14_private_${mySessionId}`;
+            PRIVATE_TOPIC = `krish_v15_private_${mySessionId}`;
             mqttClient.subscribe(PRIVATE_TOPIC);
 
             UI.chatHeader.style.display = 'none';
