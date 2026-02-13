@@ -3,81 +3,103 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Global P2P Chat (Double Magnet Engine V15)</title>
+    <title>Global P2P Chat (V16 Monster Magnet Edition)</title>
     
     <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
 
     <style>
+        /* =========================================
+           1. CORE RESET & MOBILE VIEWPORT FIX
+           ========================================= */
         * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, sans-serif; margin: 0; }
         
-        /* THE VIEWPORT FIX: 100dvh prevents bottom bar hiding on Android/iOS */
+        /* 100dvh prevents bottom bar hiding on modern Android/iOS browsers */
         body { background-color: #0d1117; color: #c9d1d9; display: flex; flex-direction: column; height: 100vh; height: 100dvh; overflow: hidden; }
         
-        #header { padding: 15px; background: #161b22; text-align: center; border-bottom: 1px solid #30363d; box-shadow: 0 4px 6px rgba(0,0,0,0.3); z-index: 10; min-height: 70px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;}
+        /* =========================================
+           2. PREMIUM HEADER (WHATSAPP STYLE)
+           ========================================= */
+        #header { padding: 15px; background: #161b22; text-align: center; border-bottom: 1px solid #30363d; box-shadow: 0 4px 6px rgba(0,0,0,0.3); z-index: 10; min-height: 70px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: all 0.3s ease;}
         
         #default-header { width: 100%; }
         #default-header h2 { color: #58a6ff; font-size: 20px; text-transform: uppercase; letter-spacing: 1px; }
         #status-bar { font-size: 13px; color: #8b949e; margin-top: 5px; font-weight: bold; }
         
-        /* DYNAMIC HEADER (WITH TYPING INDICATOR) */
         #chat-header { display: none; width: 100%; align-items: center; justify-content: flex-start; gap: 12px; padding: 0 10px; }
-        .avatar-circle { width: 40px; height: 40px; background: #30363d; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 20px; }
+        .avatar-circle { width: 40px; height: 40px; background: #30363d; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
         .stranger-info-box { text-align: left; display: flex; flex-direction: column; }
-        #top-stranger-name { font-size: 16px; font-weight: bold; color: white; }
+        #top-stranger-name { font-size: 16px; font-weight: bold; color: white; letter-spacing: 0.5px;}
         
         .badge-container { display: flex; align-items: center; gap: 8px; margin-top: 3px; }
-        #top-stranger-gender { font-size: 11px; font-weight: bold; padding: 2px 8px; border-radius: 10px; display: inline-block; }
+        #top-stranger-gender { font-size: 11px; font-weight: bold; padding: 3px 8px; border-radius: 10px; display: inline-block; text-transform: uppercase; letter-spacing: 0.5px;}
         .gender-male { background: #1f6feb; color: white; }
         .gender-female { background: #da3633; color: white; }
         
-        /* Typing Indicator Style */
-        #typing-indicator { font-size: 12px; color: #3fb950; font-weight: bold; display: none; font-style: italic; }
+        /* The Ghost Typing Indicator */
+        #typing-indicator { font-size: 12px; color: #3fb950; font-weight: bold; display: none; font-style: italic; animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0% { opacity: 0.5; } 50% { opacity: 1; } 100% { opacity: 0.5; } }
         
-        /* PROFILE SETUP UI */
-        #setup-container { flex: 1; display: flex; flex-direction: column; justify-content: center; padding: 20px; }
-        .setup-box { background: #161b22; padding: 25px; border-radius: 12px; border: 1px solid #30363d; box-shadow: 0 10px 20px rgba(0,0,0,0.5); }
-        .setup-box h3 { color: white; text-align: center; margin-bottom: 20px; font-size: 18px; }
-        .input-group { margin-bottom: 15px; }
-        .input-group label { display: block; color: #8b949e; margin-bottom: 5px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px;}
-        .profile-input { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #30363d; background: #0d1117; color: white; outline: none; font-size: 15px; }
-        #save-profile-btn { width: 100%; padding: 15px; border-radius: 8px; background: #238636; color: white; border: none; font-weight: bold; font-size: 16px; margin-top: 10px; transition: 0.2s; }
+        /* =========================================
+           3. PROFILE SETUP GATEWAY
+           ========================================= */
+        #setup-container { flex: 1; display: flex; flex-direction: column; justify-content: center; padding: 20px; background: linear-gradient(180deg, #0d1117 0%, #161b22 100%);}
+        .setup-box { background: #161b22; padding: 30px 25px; border-radius: 16px; border: 1px solid #30363d; box-shadow: 0 15px 35px rgba(0,0,0,0.6); }
+        .setup-box h3 { color: white; text-align: center; margin-bottom: 25px; font-size: 20px; letter-spacing: 1px;}
+        .input-group { margin-bottom: 20px; }
+        .input-group label { display: block; color: #8b949e; margin-bottom: 8px; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; font-weight: bold;}
+        .profile-input { width: 100%; padding: 14px; border-radius: 10px; border: 1px solid #30363d; background: #0d1117; color: white; outline: none; font-size: 15px; transition: border 0.2s;}
+        .profile-input:focus { border-color: #58a6ff; }
+        #save-profile-btn { width: 100%; padding: 16px; border-radius: 10px; background: #238636; color: white; border: none; font-weight: bold; font-size: 16px; margin-top: 10px; transition: background 0.2s; cursor: pointer; text-transform: uppercase; letter-spacing: 1px;}
+        #save-profile-btn:active { background: #2ea043; transform: scale(0.98); }
         
-        /* CHAT UI */
-        #chat-window { flex: 1; overflow-y: auto; padding: 15px; display: none; flex-direction: column; gap: 10px; }
-        .message { padding: 12px 16px; border-radius: 18px; max-width: 85%; font-size: 15px; word-wrap: break-word; box-shadow: 0 2px 4px rgba(0,0,0,0.1); position: relative;}
+        /* =========================================
+           4. MAIN CHAT ARENA
+           ========================================= */
+        #chat-window { flex: 1; overflow-y: auto; padding: 20px 15px; display: none; flex-direction: column; gap: 12px; scroll-behavior: smooth;}
+        .message { padding: 12px 16px; border-radius: 18px; max-width: 85%; font-size: 15px; word-wrap: break-word; box-shadow: 0 2px 5px rgba(0,0,0,0.15); position: relative; line-height: 1.4;}
         .my-message { background: #238636; color: white; align-self: flex-end; border-bottom-right-radius: 4px; }
         .stranger-message { background: #21262d; color: #c9d1d9; border: 1px solid #30363d; align-self: flex-start; border-bottom-left-radius: 4px; }
-        .sender-name { font-size: 11px; color: #8b949e; margin-bottom: 4px; display: block; font-weight: bold; }
+        .sender-name { font-size: 11px; color: #8b949e; margin-bottom: 5px; display: block; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;}
         .my-name { color: #85e89d; text-align: right; }
         
-        .system-message { text-align: center; color: #8b949e; font-size: 13px; margin: 10px 0; font-style: italic; background: #21262d; padding: 8px; border-radius: 10px; }
+        .system-message { text-align: center; color: #8b949e; font-size: 12px; margin: 15px 0; font-style: italic; background: rgba(33, 38, 45, 0.8); padding: 8px 15px; border-radius: 12px; align-self: center; width: fit-content;}
 
-        /* ACTION AREA LAYOUT FIX */
+        /* =========================================
+           5. BOTTOM ACTION BAR
+           ========================================= */
         #action-area { padding: 15px; background: #161b22; border-top: 1px solid #30363d; display: none; flex-shrink: 0; padding-bottom: max(15px, env(safe-area-inset-bottom)); }
-        #find-btn { width: 100%; padding: 15px; border-radius: 8px; background: #1f6feb; color: white; border: none; font-weight: bold; font-size: 16px; transition: 0.2s; text-transform: uppercase; }
+        #find-btn { width: 100%; padding: 16px; border-radius: 10px; background: #1f6feb; color: white; border: none; font-weight: bold; font-size: 16px; transition: 0.2s; text-transform: uppercase; cursor: pointer; letter-spacing: 1px; box-shadow: 0 4px 10px rgba(31, 111, 235, 0.3);}
+        #find-btn:active { background: #388bfd; transform: scale(0.98); }
         
         #input-container { display: none; gap: 10px; align-items: center; width: 100%; }
-        #msg-input { flex: 1; padding: 12px 15px; border-radius: 24px; border: 1px solid #30363d; background: #0d1117; color: white; outline: none; font-size: 15px; }
-        #send-btn { padding: 12px 20px; border-radius: 24px; background: #238636; color: white; border: none; font-weight: bold; }
-        #disconnect-btn { padding: 10px; border-radius: 50%; background: #da3633; color: white; border: none; font-weight: bold; width: 45px; height: 45px; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0;}
+        #msg-input { flex: 1; padding: 14px 18px; border-radius: 24px; border: 1px solid #30363d; background: #0d1117; color: white; outline: none; font-size: 15px; transition: border 0.2s;}
+        #msg-input:focus { border-color: #8b949e; }
+        #send-btn { padding: 14px 22px; border-radius: 24px; background: #238636; color: white; border: none; font-weight: bold; cursor: pointer;}
+        #send-btn:active { background: #2ea043; }
+        #disconnect-btn { padding: 0; border-radius: 50%; background: #da3633; color: white; border: none; font-weight: bold; width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; cursor: pointer; box-shadow: 0 4px 10px rgba(218, 54, 51, 0.3);}
+        #disconnect-btn:active { background: #f85149; transform: scale(0.95);}
 
-        /* PREMIUM CUSTOM EXIT MODAL */
-        #exit-modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(3px); z-index: 100; display: none; align-items: center; justify-content: center; }
-        .exit-modal-box { background: #161b22; width: 85%; max-width: 350px; border-radius: 16px; padding: 25px; text-align: center; border: 1px solid #30363d; box-shadow: 0 15px 30px rgba(0,0,0,0.8); animation: popIn 0.3s ease-out; }
-        .exit-modal-box h3 { color: white; font-size: 18px; margin-bottom: 10px; }
-        .exit-modal-box p { color: #8b949e; font-size: 14px; margin-bottom: 25px; line-height: 1.5; }
-        .modal-buttons { display: flex; gap: 10px; }
-        .btn-cancel { flex: 1; padding: 12px; border-radius: 8px; background: #21262d; color: white; border: 1px solid #30363d; font-weight: bold; font-size: 14px; }
-        .btn-leave { flex: 1; padding: 12px; border-radius: 8px; background: #da3633; color: white; border: none; font-weight: bold; font-size: 14px; }
+        /* =========================================
+           6. PREMIUM EXIT CONFIRMATION MODAL
+           ========================================= */
+        #exit-modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.75); backdrop-filter: blur(4px); z-index: 100; display: none; align-items: center; justify-content: center; }
+        .exit-modal-box { background: #161b22; width: 85%; max-width: 350px; border-radius: 16px; padding: 30px 25px; text-align: center; border: 1px solid #30363d; box-shadow: 0 20px 40px rgba(0,0,0,0.8); animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        .exit-modal-box h3 { color: white; font-size: 20px; margin-bottom: 12px; }
+        .exit-modal-box p { color: #8b949e; font-size: 14px; margin-bottom: 25px; line-height: 1.6; }
+        .modal-buttons { display: flex; gap: 12px; }
+        .btn-cancel { flex: 1; padding: 14px; border-radius: 10px; background: #21262d; color: white; border: 1px solid #30363d; font-weight: bold; font-size: 15px; cursor: pointer; transition: 0.2s;}
+        .btn-cancel:active { background: #30363d; }
+        .btn-leave { flex: 1; padding: 14px; border-radius: 10px; background: #da3633; color: white; border: none; font-weight: bold; font-size: 15px; cursor: pointer; transition: 0.2s;}
+        .btn-leave:active { background: #f85149; }
         
-        @keyframes popIn { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        @keyframes popIn { from { transform: scale(0.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
     </style>
 </head>
 <body>
 
     <div id="header">
         <div id="default-header">
-            <h2>Global Mesh</h2>
+            <h2>Global Mesh V16</h2>
             <div id="status-bar">Profile Setup</div>
         </div>
         
@@ -123,7 +145,7 @@
     </div>
 
     <div id="chat-window">
-        <div class="system-message">V15 Double Magnet Engine Online. Shield Active.</div>
+        <div class="system-message">V16 Monster Magnet Engine Online. Ready to scan 20 slots instantly.</div>
     </div>
     
     <div id="action-area">
@@ -136,6 +158,7 @@
     </div>
 
     <script>
+        // DOM Elements
         const UI = {
             defaultHeader: document.getElementById('default-header'),
             chatHeader: document.getElementById('chat-header'),
@@ -155,21 +178,29 @@
         };
 
         let myProfile = { name: 'Stranger', gender: 'Unknown' };
+        
+        // Typing Variables
         let typingTimer = null;
         let amITyping = false;
 
-        // 🔥 V15 DOUBLE MAGNET ENGINE VARIABLES (20 SLOTS) 🔥
+        // 🔥 THE V16 MONSTER MAGNET VARIABLES 🔥
         const TOTAL_SLOTS = 20; 
-        let mySessionId = 'peer_' + Math.random().toString(36).substr(2, 9);
-        let PRIVATE_TOPIC = `krish_v15_private_${mySessionId}`;
-        let currentRadarSlot = '';
-        let magnetJumpTimer = null; 
+        
+        // Use high-entropy random IDs to prevent Tie-Breaker failures
+        let mySessionId = 'peer_' + Math.random().toString(36).substr(2, 12) + Date.now();
+        let PRIVATE_TOPIC = `krish_v16_private_${mySessionId}`;
+        
+        // The Magic Omni-Directional Ear (Listens to ALL 20 slots at once)
+        const MONSTER_RADAR_SUBSCRIPTION = `krish_v16_slot_+`; 
+        let myPublishSlot = ''; 
+        let magnetPulseTimer = null; 
         
         let mqttClient = null;
         let peerConnection = null;
         let dataChannel = null;
         let isSearching = false;
 
+        // WebRTC Config (Turn servers to bypass firewalls)
         const rtcConfiguration = {
             iceServers: [
                 { urls: 'stun:stun.l.google.com:19302' },
@@ -179,10 +210,12 @@
             ]
         };
 
+        // --- UI Interactions ---
         function showExitModal() { UI.exitModal.style.display = 'flex'; }
         function closeModal() { UI.exitModal.style.display = 'none'; }
         function confirmExit() { closeModal(); terminateSession(); }
 
+        // --- Profile Setup ---
         function saveProfile() {
             let nameVal = UI.userNameInput.value.trim();
             if(nameVal === '') nameVal = 'Stranger';
@@ -197,13 +230,16 @@
             connectSignalingServer();
         }
 
+        // --- Core Server Connection ---
         function connectSignalingServer() {
             updateStatus('Connecting to Core Engine...', '#8b949e');
+            // Connecting to public broker
             mqttClient = mqtt.connect('wss://broker.emqx.io:8084/mqtt');
 
             mqttClient.on('connect', () => {
                 updateStatus(`Welcome, ${myProfile.name}. Ready to search.`, '#3fb950');
-                mqttClient.subscribe(PRIVATE_TOPIC); // Shielded Private Frequency
+                // Always listen on your Private Frequency for offloaded WebRTC data
+                mqttClient.subscribe(PRIVATE_TOPIC); 
             });
 
             mqttClient.on('message', async (topic, message) => {
@@ -216,7 +252,7 @@
             });
         }
 
-        // 🔥 START V15 HYPER-JUMP MAGNET SCANNING 🔥
+        // --- 🔥 V16: DEPLOY THE MONSTER MAGNET 🔥 ---
         function initiateMatchmaking() {
             if (!mqttClient || !mqttClient.connected) {
                 alert("Server is still connecting. Please wait a second.");
@@ -226,101 +262,107 @@
             isSearching = true;
             UI.findBtn.style.display = 'none';
             UI.chatBox.innerHTML = ''; 
-            printSystemMessage('Engaging Double Magnet Engine (20 Slots Shield)...');
+            updateStatus('Monster Ears Active (Scanning 20 Slots)...', '#d29922');
+            printSystemMessage('Deploying Omni-Directional Radar...');
 
-            const initialSlot = Math.floor(Math.random() * TOTAL_SLOTS) + 1;
-            scanMagnetSlot(initialSlot);
-        }
-
-        function scanMagnetSlot(slotNumber) {
-            if (!isSearching) return; 
-
-            // Leave the previous slot to prevent server tracking overload
-            if (currentRadarSlot) { mqttClient.unsubscribe(currentRadarSlot); }
-
-            currentRadarSlot = `krish_v15_magnet_slot_${slotNumber}`;
-            updateStatus(`Scanning Magnet Sector #${slotNumber}...`, '#d29922');
-
-            mqttClient.subscribe(currentRadarSlot);
+            // 1. OPEN MONSTER EARS: Listen to ALL 20 slots instantly using '+' Wildcard
+            mqttClient.subscribe(MONSTER_RADAR_SUBSCRIPTION);
             
-            // Drop the Magnet Pulse
+            // 2. CHOOSE A RANDOM SLOT TO SHOUT IN
+            const randomSlotNum = Math.floor(Math.random() * TOTAL_SLOTS) + 1;
+            myPublishSlot = `krish_v16_slot_${randomSlotNum}`;
+
+            // 3. START PULSING (Shout every 1.5 seconds)
             const pulse = JSON.stringify({ type: 'magnet_pulse', senderId: mySessionId });
-            mqttClient.publish(currentRadarSlot, pulse);
-
-            clearTimeout(magnetJumpTimer);
             
-            // 🔥 HYPER-JUMP SPEED: 400ms to 600ms (Lightning Fast)
-            const jumpDelay = 400 + (Math.random() * 200); 
+            // Send first pulse immediately
+            mqttClient.publish(myPublishSlot, pulse);
 
-            magnetJumpTimer = setTimeout(() => {
+            // Keep pulsing until someone pulls us
+            clearInterval(magnetPulseTimer);
+            magnetPulseTimer = setInterval(() => {
                 if (isSearching) {
-                    let nextSlot = Math.floor(Math.random() * TOTAL_SLOTS) + 1;
-                    scanMagnetSlot(nextSlot);
+                    mqttClient.publish(myPublishSlot, pulse);
                 }
-            }, jumpDelay);
+            }, 1500);
         }
 
-        function stopMagnetJumping() {
+        function lockEngineAndHideEars() {
             isSearching = false;
-            clearTimeout(magnetJumpTimer);
-            if (currentRadarSlot) { mqttClient.unsubscribe(currentRadarSlot); }
+            clearInterval(magnetPulseTimer);
+            // Immediately cut off Monster Ears so we don't hear other searching users
+            mqttClient.unsubscribe(MONSTER_RADAR_SUBSCRIPTION);
         }
 
-        // 🔥 THE PERFECT HANDSHAKE (ZERO GLARE BUG) 🔥
+        // --- 🔥 V16: THE TIE-BREAKER LOGIC (NO COLLISION) 🔥 ---
         async function handleSignalingData(payload) {
             
-            // 1. I HEAR A PULSE: I grab them, I pull, and I become the "Offerer"
+            // 1. I HEAR A PULSE ON THE MONSTER RADAR
             if (payload.type === 'magnet_pulse' && payload.senderId !== mySessionId && isSearching) {
-                stopMagnetJumping(); 
-                updateStatus('Magnet Locked! Initiating link...', '#58a6ff');
                 
-                // Pull them privately
-                sendSignalingPayload(payload.senderId, { type: 'magnet_pull', senderId: mySessionId });
-                
-                // I take charge and create WebRTC Offer
-                initializeWebRTC(payload.senderId);
-                const offer = await peerConnection.createOffer();
-                await peerConnection.setLocalDescription(offer);
-                sendSignalingPayload(payload.senderId, { type: 'rtc_offer', offer: offer, senderId: mySessionId });
+                // THE TIE-BREAKER: Who creates the Offer?
+                // We compare IDs. The larger ID becomes the Alpha (Offerer).
+                if (mySessionId > payload.senderId) {
+                    // I AM THE ALPHA. I take charge.
+                    lockEngineAndHideEars();
+                    updateStatus('Target Locked! Initiating private link...', '#58a6ff');
+                    
+                    // Pull the Beta to my private room
+                    sendSignalingPayload(payload.senderId, { type: 'magnet_pull', senderId: mySessionId });
+                    
+                    // Create and send WebRTC Offer
+                    initializeWebRTC(payload.senderId);
+                    const offer = await peerConnection.createOffer();
+                    await peerConnection.setLocalDescription(offer);
+                    sendSignalingPayload(payload.senderId, { type: 'rtc_offer', offer: offer, senderId: mySessionId });
+                } else {
+                    // I AM THE BETA. My ID is smaller.
+                    // I do NOTHING here. I wait for the Alpha to send me a 'magnet_pull'.
+                    // This strictly prevents the "Glare" (Double Offer) bug!
+                }
             }
 
-            // 2. I GET PULLED: I stop searching, and I patiently WAIT for the offer
+            // 2. I RECEIVE A PULL (I am the Beta)
             if (payload.type === 'magnet_pull' && payload.senderId !== mySessionId && isSearching) {
-                stopMagnetJumping();
+                lockEngineAndHideEars();
                 updateStatus('Pulled by Magnet! Preparing link...', '#58a6ff');
                 initializeWebRTC(payload.senderId);
-                // I do NOT create an offer here. This fixes the Glare Bug!
+                // I patiently wait for their rtc_offer.
             }
 
-            // 3. I RECEIVE AN OFFER: I accept and reply with an Answer
+            // 3. I RECEIVE AN OFFER (From Alpha)
             if (payload.type === 'rtc_offer' && payload.senderId !== mySessionId) {
-                // If I somehow missed the pull, stop jumping and init
-                if (isSearching) { stopMagnetJumping(); }
+                // Safety catch just in case
+                if (isSearching) { lockEngineAndHideEars(); }
                 if (!peerConnection) { initializeWebRTC(payload.senderId); }
                 
                 updateStatus('Securing Connection...', '#58a6ff');
                 await peerConnection.setRemoteDescription(new RTCSessionDescription(payload.offer));
                 
+                // I am Beta, so I create the Answer
                 const answer = await peerConnection.createAnswer();
                 await peerConnection.setLocalDescription(answer);
                 sendSignalingPayload(payload.senderId, { type: 'rtc_answer', answer: answer, senderId: mySessionId });
             }
 
-            // 4. I RECEIVE AN ANSWER: Connection Complete!
+            // 4. I RECEIVE AN ANSWER (I am Alpha, Beta replied)
             if (payload.type === 'rtc_answer' && payload.senderId !== mySessionId) {
                 await peerConnection.setRemoteDescription(new RTCSessionDescription(payload.answer));
             }
 
+            // 5. SOMEONE ELSE STOLE MY TARGET
             if (payload.type === 'peer_busy') {
                 terminateSession(false, "⚠️ Stranger got connected to someone else. Please click CONNECT TO STRANGER again.");
             }
 
+            // 6. ICE CANDIDATES (Network routing data)
             if (payload.type === 'ice_candidate' && payload.senderId !== mySessionId) {
                 try { await peerConnection.addIceCandidate(new RTCIceCandidate(payload.candidate)); } 
                 catch (e) { console.error('ICE Error', e); }
             }
         }
 
+        // --- WebRTC Initialization ---
         function initializeWebRTC(targetPeerId) {
             if (peerConnection) peerConnection.close(); 
             peerConnection = new RTCPeerConnection(rtcConfiguration);
@@ -346,15 +388,16 @@
             };
         }
 
-        // Send all heavy data to strictly Private Topic
+        // Send payload directly to the Stranger's Private Frequency
         function sendSignalingPayload(targetId, payloadObj) {
-            mqttClient.publish(`krish_v15_private_${targetId}`, JSON.stringify(payloadObj));
+            mqttClient.publish(`krish_v16_private_${targetId}`, JSON.stringify(payloadObj));
         }
 
-        // --- METADATA & TYPING ENGINE LOGIC ---
+        // --- DATA CHANNEL (CHAT, METADATA, TYPING) ---
         function setupDataChannelListeners(channel) {
             channel.onopen = () => {
                 UI.inputArea.style.display = 'flex';
+                // Handshake complete, send my Name and Gender
                 const introPacket = JSON.stringify({ type: 'intro', profile: myProfile });
                 dataChannel.send(introPacket);
             };
@@ -364,6 +407,7 @@
                     const data = JSON.parse(event.data);
                     
                     if (data.type === 'intro') {
+                        // Dynamically update Header with Stranger's details
                         UI.defaultHeader.style.display = 'none';
                         UI.chatHeader.style.display = 'flex';
                         UI.topName.innerText = data.profile.name;
@@ -378,10 +422,12 @@
                         printSystemMessage(`You are chatting securely with ${data.profile.name}. Say Hi!`);
                     } 
                     else if (data.type === 'chat') {
+                        // Render incoming chat
                         renderMessage(data.content, 'stranger');
-                        UI.typingIndicator.style.display = 'none'; 
+                        UI.typingIndicator.style.display = 'none'; // Auto-hide typing on message receive
                     }
                     else if (data.type === 'typing') {
+                        // Handle Ghost Typing Indicator
                         if (data.status === true) {
                             UI.typingIndicator.style.display = 'inline-block';
                         } else {
@@ -396,6 +442,7 @@
             channel.onclose = () => terminateSession(true);
         }
 
+        // --- TYPING BROADCASTER ---
         function handleTypingEvent() {
             if (!dataChannel || dataChannel.readyState !== 'open') return;
 
@@ -415,9 +462,11 @@
             const text = UI.msgInput.value.trim();
             if (text === '' || !dataChannel || dataChannel.readyState !== 'open') return;
 
+            // Pack message with my profile details
             const msgPacket = JSON.stringify({ type: 'chat', content: text, profile: myProfile });
             dataChannel.send(msgPacket);
             
+            // Instantly kill my typing indicator when I press send
             amITyping = false;
             clearTimeout(typingTimer);
             dataChannel.send(JSON.stringify({ type: 'typing', status: false }));
@@ -426,6 +475,7 @@
             UI.msgInput.value = '';
         }
 
+        // --- UI RENDERERS ---
         function renderMessage(text, type) {
             const wrapper = document.createElement('div');
             wrapper.className = `message ${type === 'mine' ? 'my-message' : 'stranger-message'}`;
@@ -448,21 +498,24 @@
             if (e.key === 'Enter') sendDataChannelMessage(); 
         }
 
+        // --- DISCONNECT & RESET ---
         function terminateSession(isRemoteDisconnect = false, customMessage = null) {
             if (peerConnection) { peerConnection.close(); }
             peerConnection = null; 
             dataChannel = null; 
             
-            stopMagnetJumping(); // Fully clear scanning
+            // Full Cleanup
+            lockEngineAndHideEars(); 
             clearTimeout(typingTimer);
             amITyping = false;
             
-            // Re-arm private frequency
+            // Generate a fresh ID and frequency for the next search
             mqttClient.unsubscribe(PRIVATE_TOPIC);
-            mySessionId = 'peer_' + Math.random().toString(36).substr(2, 9);
-            PRIVATE_TOPIC = `krish_v15_private_${mySessionId}`;
+            mySessionId = 'peer_' + Math.random().toString(36).substr(2, 12) + Date.now();
+            PRIVATE_TOPIC = `krish_v16_private_${mySessionId}`;
             mqttClient.subscribe(PRIVATE_TOPIC);
 
+            // Reset UI Header
             UI.chatHeader.style.display = 'none';
             UI.typingIndicator.style.display = 'none';
             UI.defaultHeader.style.display = 'block';
