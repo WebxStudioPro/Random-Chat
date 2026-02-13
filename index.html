@@ -3,31 +3,36 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Global P2P Chat (Premium UX Edition)</title>
+    <title>Global P2P Chat (Typing Engine Edition)</title>
     
     <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
 
     <style>
         * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, sans-serif; margin: 0; }
-        body { background-color: #0d1117; color: #c9d1d9; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
         
-        /* 🔥 WHATSAPP STYLE DYNAMIC HEADER 🔥 */
-        #header { padding: 15px; background: #161b22; text-align: center; border-bottom: 1px solid #30363d; box-shadow: 0 4px 6px rgba(0,0,0,0.3); z-index: 10; min-height: 70px; display: flex; align-items: center; justify-content: center;}
+        /* 🔥 THE VIEWPORT FIX: 100dvh prevents bottom bar hiding on Android/iOS 🔥 */
+        body { background-color: #0d1117; color: #c9d1d9; display: flex; flex-direction: column; height: 100vh; height: 100dvh; overflow: hidden; }
+        
+        #header { padding: 15px; background: #161b22; text-align: center; border-bottom: 1px solid #30363d; box-shadow: 0 4px 6px rgba(0,0,0,0.3); z-index: 10; min-height: 70px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;}
         
         #default-header { width: 100%; }
         #default-header h2 { color: #58a6ff; font-size: 20px; text-transform: uppercase; letter-spacing: 1px; }
         #status-bar { font-size: 13px; color: #8b949e; margin-top: 5px; font-weight: bold; }
         
-        /* NEW: Stranger Info Header */
+        /* DYNAMIC HEADER (WITH TYPING INDICATOR) */
         #chat-header { display: none; width: 100%; align-items: center; justify-content: flex-start; gap: 12px; padding: 0 10px; }
         .avatar-circle { width: 40px; height: 40px; background: #30363d; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 20px; }
         .stranger-info-box { text-align: left; display: flex; flex-direction: column; }
         #top-stranger-name { font-size: 16px; font-weight: bold; color: white; }
-        #top-stranger-gender { font-size: 11px; font-weight: bold; margin-top: 3px; padding: 2px 8px; border-radius: 10px; display: inline-block; width: fit-content; }
+        
+        .badge-container { display: flex; align-items: center; gap: 8px; margin-top: 3px; }
+        #top-stranger-gender { font-size: 11px; font-weight: bold; padding: 2px 8px; border-radius: 10px; display: inline-block; }
         .gender-male { background: #1f6feb; color: white; }
         .gender-female { background: #da3633; color: white; }
         
-        /* PROFILE SETUP UI */
+        /* NEW: Typing Indicator Style */
+        #typing-indicator { font-size: 12px; color: #3fb950; font-weight: bold; display: none; font-style: italic; }
+        
         #setup-container { flex: 1; display: flex; flex-direction: column; justify-content: center; padding: 20px; }
         .setup-box { background: #161b22; padding: 25px; border-radius: 12px; border: 1px solid #30363d; box-shadow: 0 10px 20px rgba(0,0,0,0.5); }
         .setup-box h3 { color: white; text-align: center; margin-bottom: 20px; font-size: 18px; }
@@ -36,22 +41,25 @@
         .profile-input { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #30363d; background: #0d1117; color: white; outline: none; font-size: 15px; }
         #save-profile-btn { width: 100%; padding: 15px; border-radius: 8px; background: #238636; color: white; border: none; font-weight: bold; font-size: 16px; margin-top: 10px; transition: 0.2s; }
         
-        /* CHAT UI */
         #chat-window { flex: 1; overflow-y: auto; padding: 15px; display: none; flex-direction: column; gap: 10px; }
-        .message { padding: 12px 16px; border-radius: 18px; max-width: 85%; font-size: 15px; word-wrap: break-word; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .message { padding: 12px 16px; border-radius: 18px; max-width: 85%; font-size: 15px; word-wrap: break-word; box-shadow: 0 2px 4px rgba(0,0,0,0.1); position: relative;}
         .my-message { background: #238636; color: white; align-self: flex-end; border-bottom-right-radius: 4px; }
         .stranger-message { background: #21262d; color: #c9d1d9; border: 1px solid #30363d; align-self: flex-start; border-bottom-left-radius: 4px; }
+        .sender-name { font-size: 11px; color: #8b949e; margin-bottom: 4px; display: block; font-weight: bold; }
+        .my-name { color: #85e89d; text-align: right; }
+        
         .system-message { text-align: center; color: #8b949e; font-size: 13px; margin: 10px 0; font-style: italic; background: #21262d; padding: 8px; border-radius: 10px; }
 
-        #action-area { padding: 15px; background: #161b22; border-top: 1px solid #30363d; display: none; }
+        /* 🔥 ACTION AREA LAYOUT FIX 🔥 */
+        #action-area { padding: 15px; background: #161b22; border-top: 1px solid #30363d; display: none; flex-shrink: 0; padding-bottom: max(15px, env(safe-area-inset-bottom)); }
         #find-btn { width: 100%; padding: 15px; border-radius: 8px; background: #1f6feb; color: white; border: none; font-weight: bold; font-size: 16px; transition: 0.2s; text-transform: uppercase; }
         
-        #input-container { display: none; gap: 10px; }
+        #input-container { display: none; gap: 10px; align-items: center; width: 100%; }
         #msg-input { flex: 1; padding: 12px 15px; border-radius: 24px; border: 1px solid #30363d; background: #0d1117; color: white; outline: none; font-size: 15px; }
         #send-btn { padding: 12px 20px; border-radius: 24px; background: #238636; color: white; border: none; font-weight: bold; }
-        #disconnect-btn { padding: 12px; border-radius: 50%; background: #da3633; color: white; border: none; font-weight: bold; width: 45px; height: 45px; display: flex; align-items: center; justify-content: center; font-size: 18px;}
+        #disconnect-btn { padding: 10px; border-radius: 50%; background: #da3633; color: white; border: none; font-weight: bold; width: 45px; height: 45px; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0;}
 
-        /* 🔥 PREMIUM CUSTOM EXIT MODAL 🔥 */
+        /* PREMIUM CUSTOM EXIT MODAL */
         #exit-modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(3px); z-index: 100; display: none; align-items: center; justify-content: center; }
         .exit-modal-box { background: #161b22; width: 85%; max-width: 350px; border-radius: 16px; padding: 25px; text-align: center; border: 1px solid #30363d; box-shadow: 0 15px 30px rgba(0,0,0,0.8); animation: popIn 0.3s ease-out; }
         .exit-modal-box h3 { color: white; font-size: 18px; margin-bottom: 10px; }
@@ -75,7 +83,10 @@
             <div class="avatar-circle">👤</div>
             <div class="stranger-info-box">
                 <span id="top-stranger-name">Searching...</span>
-                <span id="top-stranger-gender" class="gender-male">Unknown</span>
+                <div class="badge-container">
+                    <span id="top-stranger-gender" class="gender-male">Unknown</span>
+                    <span id="typing-indicator">typing...</span>
+                </div>
             </div>
         </div>
     </div>
@@ -117,7 +128,7 @@
         <button id="find-btn" onclick="initiateMatchmaking()">CONNECT TO STRANGER</button>
         <div id="input-container">
             <button id="disconnect-btn" onclick="showExitModal()">✖</button>
-            <input type="text" id="msg-input" placeholder="Type a message..." onkeypress="handleKeypress(event)">
+            <input type="text" id="msg-input" placeholder="Type a message..." oninput="handleTypingEvent()" onkeypress="handleKeypress(event)">
             <button id="send-btn" onclick="sendDataChannelMessage()">SEND</button>
         </div>
     </div>
@@ -128,6 +139,7 @@
             chatHeader: document.getElementById('chat-header'),
             topName: document.getElementById('top-stranger-name'),
             topGender: document.getElementById('top-stranger-gender'),
+            typingIndicator: document.getElementById('typing-indicator'),
             status: document.getElementById('status-bar'),
             setupContainer: document.getElementById('setup-container'),
             chatBox: document.getElementById('chat-window'),
@@ -141,8 +153,12 @@
         };
 
         let myProfile = { name: 'Stranger', gender: 'Unknown' };
+        
+        // TYPING ENGINE VARIABLES
+        let typingTimer = null;
+        let amITyping = false;
 
-        // 🔥 CORE V11 ENGINE (UNTOUCHED) 🔥
+        // CORE V11 ENGINE
         const TOTAL_SLOTS = 20; 
         let mySessionId = 'peer_' + Math.random().toString(36).substr(2, 9);
         let PRIVATE_TOPIC = `krish_v11_private_${mySessionId}`;
@@ -163,18 +179,12 @@
             ]
         };
 
-        // --- CUSTOM MODAL LOGIC ---
-        function showExitModal() {
-            UI.exitModal.style.display = 'flex';
-        }
-
-        function closeModal() {
-            UI.exitModal.style.display = 'none';
-        }
-
+        function showExitModal() { UI.exitModal.style.display = 'flex'; }
+        function closeModal() { UI.exitModal.style.display = 'none'; }
+        
         function confirmExit() {
             closeModal();
-            terminateSession(); // Call original disconnect function
+            terminateSession(); 
         }
 
         function saveProfile() {
@@ -186,7 +196,7 @@
 
             UI.setupContainer.style.display = 'none';
             UI.chatBox.style.display = 'flex';
-            UI.actionArea.style.display = 'block';
+            UI.actionArea.style.display = 'flex'; // Changed from block to flex
             
             connectSignalingServer();
         }
@@ -227,7 +237,6 @@
 
         function jumpToSlot(slotNumber) {
             if (!isSearching) return; 
-
             if (currentLobbySlot) { mqttClient.unsubscribe(currentLobbySlot); }
 
             currentLobbySlot = `krish_mesh_v11_slot_${slotNumber}`;
@@ -331,7 +340,7 @@
             mqttClient.publish(`krish_v11_private_${targetId}`, JSON.stringify(payloadObj));
         }
 
-        // --- CHAT & HEADER INJECTION ---
+        // --- METADATA & TYPING ENGINE LOGIC ---
         function setupDataChannelListeners(channel) {
             channel.onopen = () => {
                 UI.inputArea.style.display = 'flex';
@@ -344,13 +353,11 @@
                     const data = JSON.parse(event.data);
                     
                     if (data.type === 'intro') {
-                        // 🔥 DYNAMIC HEADER UPDATE 🔥
                         UI.defaultHeader.style.display = 'none';
                         UI.chatHeader.style.display = 'flex';
                         UI.topName.innerText = data.profile.name;
                         UI.topGender.innerText = data.profile.gender;
                         
-                        // Set specific styling based on Gender for professional look
                         if(data.profile.gender === 'Female') {
                             UI.topGender.className = 'gender-female';
                         } else {
@@ -361,6 +368,15 @@
                     } 
                     else if (data.type === 'chat') {
                         renderMessage(data.content, 'stranger');
+                        UI.typingIndicator.style.display = 'none'; // Hide typing if message received
+                    }
+                    else if (data.type === 'typing') {
+                        // 🔥 SHOW/HIDE TYPING INDICATOR 🔥
+                        if (data.status === true) {
+                            UI.typingIndicator.style.display = 'inline-block';
+                        } else {
+                            UI.typingIndicator.style.display = 'none';
+                        }
                     }
                 } catch(e) {
                     renderMessage(event.data, 'stranger');
@@ -370,6 +386,24 @@
             channel.onclose = () => terminateSession(true);
         }
 
+        // 🔥 THE TYPING BROADCASTER 🔥
+        function handleTypingEvent() {
+            if (!dataChannel || dataChannel.readyState !== 'open') return;
+
+            // Send "I am typing" to stranger
+            if (!amITyping) {
+                amITyping = true;
+                dataChannel.send(JSON.stringify({ type: 'typing', status: true }));
+            }
+
+            // If I stop typing for 1.5 seconds, send "I stopped typing"
+            clearTimeout(typingTimer);
+            typingTimer = setTimeout(() => {
+                amITyping = false;
+                dataChannel.send(JSON.stringify({ type: 'typing', status: false }));
+            }, 1500);
+        }
+
         function sendDataChannelMessage() {
             const text = UI.msgInput.value.trim();
             if (text === '' || !dataChannel || dataChannel.readyState !== 'open') return;
@@ -377,6 +411,11 @@
             const msgPacket = JSON.stringify({ type: 'chat', content: text, profile: myProfile });
             dataChannel.send(msgPacket);
             
+            // Instantly stop typing indicator when message is sent
+            amITyping = false;
+            clearTimeout(typingTimer);
+            dataChannel.send(JSON.stringify({ type: 'typing', status: false }));
+
             renderMessage(text, 'mine');
             UI.msgInput.value = '';
         }
@@ -398,23 +437,27 @@
         }
 
         function updateStatus(text, color) { UI.status.innerText = text; UI.status.style.color = color; }
-        function handleKeypress(e) { if (e.key === 'Enter') sendDataChannelMessage(); }
+        
+        function handleKeypress(e) { 
+            if (e.key === 'Enter') sendDataChannelMessage(); 
+        }
 
-        // --- DISCONNECT & RESET UI ---
         function terminateSession(isRemoteDisconnect = false, customMessage = null) {
             if (peerConnection) { peerConnection.close(); }
             peerConnection = null; 
             dataChannel = null; 
             isSearching = false;
             clearTimeout(hopTimer); 
+            clearTimeout(typingTimer);
+            amITyping = false;
             
             mqttClient.unsubscribe(PRIVATE_TOPIC);
             mySessionId = 'peer_' + Math.random().toString(36).substr(2, 9);
             PRIVATE_TOPIC = `krish_v11_private_${mySessionId}`;
             mqttClient.subscribe(PRIVATE_TOPIC);
 
-            // 🔥 RESET HEADER BACK TO DEFAULT 🔥
             UI.chatHeader.style.display = 'none';
+            UI.typingIndicator.style.display = 'none';
             UI.defaultHeader.style.display = 'block';
 
             UI.inputArea.style.display = 'none';
