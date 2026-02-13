@@ -3,24 +3,28 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Global P2P Chat (Anti-Crash Edition)</title>
+    <title>Global P2P Chat V5 (Final Fix)</title>
+    
     <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+
     <style>
-        /* Mobile-First UI (Same as before) */
-        * { box-sizing: border-box; font-family: 'Segoe UI', sans-serif; margin: 0; }
+        * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, sans-serif; margin: 0; }
         body { background-color: #0d1117; color: #c9d1d9; display: flex; flex-direction: column; height: 100vh; }
         #header { padding: 15px; background: #161b22; text-align: center; border-bottom: 1px solid #30363d; }
-        h2 { color: #58a6ff; font-size: 20px; }
-        #status-bar { font-size: 12px; color: #8b949e; margin-top: 5px; }
+        h2 { color: #58a6ff; font-size: 20px; text-transform: uppercase; }
+        #status-bar { font-size: 13px; color: #8b949e; margin-top: 5px; font-weight: bold; }
+        
         #chat-window { flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 10px; }
-        .message { padding: 12px 16px; border-radius: 18px; max-width: 85%; font-size: 14px; word-wrap: break-word; }
+        .message { padding: 12px 16px; border-radius: 18px; max-width: 85%; font-size: 15px; word-wrap: break-word; }
         .my-message { background: #238636; color: white; align-self: flex-end; border-bottom-right-radius: 4px; }
         .stranger-message { background: #21262d; color: #c9d1d9; border: 1px solid #30363d; align-self: flex-start; border-bottom-left-radius: 4px; }
-        .system-message { text-align: center; color: #8b949e; font-size: 12px; margin: 10px 0; }
+        .system-message { text-align: center; color: #8b949e; font-size: 12px; margin: 10px 0; font-style: italic; }
+
         #action-area { padding: 15px; background: #161b22; border-top: 1px solid #30363d; }
-        #find-btn { width: 100%; padding: 15px; border-radius: 8px; background: #1f6feb; color: white; border: none; font-weight: bold; font-size: 16px; }
+        #find-btn { width: 100%; padding: 15px; border-radius: 8px; background: #1f6feb; color: white; border: none; font-weight: bold; font-size: 16px; transition: 0.2s; }
+        
         #input-container { display: none; gap: 10px; }
-        #msg-input { flex: 1; padding: 12px 15px; border-radius: 24px; border: 1px solid #30363d; background: #0d1117; color: white; outline: none; }
+        #msg-input { flex: 1; padding: 12px 15px; border-radius: 24px; border: 1px solid #30363d; background: #0d1117; color: white; outline: none; font-size: 15px; }
         #send-btn { padding: 12px 20px; border-radius: 24px; background: #238636; color: white; border: none; font-weight: bold; }
         #disconnect-btn { padding: 12px; border-radius: 50%; background: #da3633; color: white; border: none; font-weight: bold; width: 45px; height: 45px; display: flex; align-items: center; justify-content: center;}
     </style>
@@ -28,29 +32,25 @@
 <body>
 
     <div id="header">
-        <h2>Unbreakable Mesh V4</h2>
-        <div id="status-bar">Initializing Failsafe Engines...</div>
+        <h2>Global Mesh V5</h2>
+        <div id="status-bar">Connecting to Global Engine...</div>
     </div>
+
     <div id="chat-window">
-        <div class="system-message">Anti-Crash Systems Online.</div>
+        <div class="system-message">Engine initialized. Ready to find strangers.</div>
     </div>
+    
     <div id="action-area">
         <button id="find-btn" onclick="initiateMatchmaking()">CONNECT TO GLOBAL MESH</button>
         <div id="input-container">
             <button id="disconnect-btn" onclick="terminateSession()">X</button>
             <input type="text" id="msg-input" placeholder="Type a message..." onkeypress="handleKeypress(event)">
-            <button id="send-btn" onclick="sendDataChannelMessage()">►</button>
+            <button id="send-btn" onclick="sendDataChannelMessage()">SEND</button>
         </div>
     </div>
 
     <script>
-        // --- 1. SHARDING (Race Condition Fix) ---
-        // Generates a random room between 1 and 50. Reduces load by 98% per room.
-        const shardNumber = Math.floor(Math.random() * 50) + 1;
-        const LOBBY_TOPIC = `krish_p2p_lobby_v4_shard_${shardNumber}`;
-        const mySessionId = 'peer_' + Math.random().toString(36).substr(2, 9);
-        const PRIVATE_TOPIC = `krish_p2p_private_${mySessionId}`;
-        
+        // --- CORE VARIABLES ---
         const UI = {
             status: document.getElementById('status-bar'),
             chatBox: document.getElementById('chat-window'),
@@ -59,89 +59,80 @@
             msgInput: document.getElementById('msg-input')
         };
 
+        // FIXED: Only 1 Global Room now so everyone finds everyone easily.
+        const LOBBY_TOPIC = 'krish_global_mesh_lobby_fixed_v5'; 
+        const mySessionId = 'peer_' + Math.random().toString(36).substr(2, 9);
+        const PRIVATE_TOPIC = `krish_p2p_private_${mySessionId}`;
+        
         let mqttClient = null;
         let peerConnection = null;
         let dataChannel = null;
         let isSearching = false;
-        let wakeLock = null; // OS Sleep Fix Variable
 
-        // --- 2. MULTIPLE BROKERS (Redundancy Fix) ---
-        const brokerUrls = [
-            'wss://broker.emqx.io:8084/mqtt',
-            'wss://mqtt.eclipseprojects.io:443/mqtt'
-        ];
-
-        // --- 3. TURN SERVER (Symmetric NAT / Firewall Fix) ---
-        // Note: To make this 100% bulletproof, get free credentials from Metered.ca and replace the TURN config.
+        // FIXED: Added Free Public TURN Server for 100% strict network bypass
         const rtcConfiguration = {
             iceServers: [
                 { urls: 'stun:stun.l.google.com:19302' },
                 { urls: 'stun:stun.cloudflare.com:3478' },
-                // ADD FREE METERED.CA TURN CREDENTIALS HERE LATER:
-                // { urls: 'turn:YOUR_URL.metered.ca:80', username: 'YOUR_USERNAME', credential: 'YOUR_PASSWORD' }
+                {
+                    urls: 'turn:openrelay.metered.ca:80',
+                    username: 'openrelayproject',
+                    credential: 'openrelayproject'
+                },
+                {
+                    urls: 'turn:openrelay.metered.ca:443',
+                    username: 'openrelayproject',
+                    credential: 'openrelayproject'
+                }
             ]
         };
 
-        // --- OS WAKE LOCK API (Background Sleep Fix) ---
-        async function enableWakeLock() {
-            try {
-                if ('wakeLock' in navigator) {
-                    wakeLock = await navigator.wakeLock.request('screen');
-                    console.log('Screen Wake Lock active');
-                }
-            } catch (err) {
-                console.error(`Wake Lock Error: ${err.name}, ${err.message}`);
-            }
-        }
-        
-        function releaseWakeLock() {
-            if (wakeLock !== null) {
-                wakeLock.release();
-                wakeLock = null;
-            }
-        }
-
-        // --- CORE SIGNALING LOGIC ---
-        function connectSignalingServer(brokerIndex = 0) {
-            if (brokerIndex >= brokerUrls.length) {
-                updateStatus('Critical Failure: All signaling servers down.', '#da3633');
-                return;
-            }
-
-            mqttClient = mqtt.connect(brokerUrls[brokerIndex], { connectTimeout: 5000 });
+        // --- STEP 1: SIGNALING SERVER ---
+        function connectSignalingServer() {
+            // Using reliable EMQX public broker for handshakes
+            mqttClient = mqtt.connect('wss://broker.emqx.io:8084/mqtt');
 
             mqttClient.on('connect', () => {
-                updateStatus(`Connected to Shard #${shardNumber}. Ready.`, '#3fb950');
-                mqttClient.subscribe(PRIVATE_TOPIC);
-            });
-
-            // Redundancy Failover Logic
-            mqttClient.on('error', () => {
-                console.log(`Broker ${brokerUrls[brokerIndex]} failed. Switching...`);
-                mqttClient.end();
-                connectSignalingServer(brokerIndex + 1); 
+                updateStatus('System Online. Ready to connect.', '#3fb950');
+                mqttClient.subscribe(PRIVATE_TOPIC); // Listen for personal messages
             });
 
             mqttClient.on('message', async (topic, message) => {
-                handleSignalingData(JSON.parse(message.toString()));
+                const payload = JSON.parse(message.toString());
+                handleSignalingData(payload);
+            });
+            
+            mqttClient.on('error', (err) => {
+                updateStatus('Network Error. Please refresh.', '#da3633');
             });
         }
 
         connectSignalingServer();
 
+        // --- STEP 2: MATCHMAKING ---
         function initiateMatchmaking() {
-            if (!mqttClient || !mqttClient.connected) return alert("Broker offline. Retrying...");
+            if (!mqttClient || !mqttClient.connected) {
+                alert("Please wait for system to come online.");
+                return;
+            }
+
             isSearching = true;
             UI.findBtn.style.display = 'none';
-            updateStatus(`Scanning Shard #${shardNumber}...`, '#d29922');
-            
+            updateStatus('Searching for a stranger...', '#d29922');
+            printSystemMessage('Scanning global network...');
+
+            // Join the ONE global room
             mqttClient.subscribe(LOBBY_TOPIC);
-            mqttClient.publish(LOBBY_TOPIC, JSON.stringify({ type: 'lobby_pulse', senderId: mySessionId }));
+
+            // Announce presence
+            const joinPulse = JSON.stringify({ type: 'lobby_pulse', senderId: mySessionId });
+            mqttClient.publish(LOBBY_TOPIC, joinPulse);
         }
 
-        // --- WEBRTC CORE ---
+        // --- STEP 3: WEBRTC CONNECTION HANDLING ---
         function initializeWebRTC(targetPeerId) {
             peerConnection = new RTCPeerConnection(rtcConfiguration);
+
             dataChannel = peerConnection.createDataChannel('chat_channel');
             setupDataChannelListeners(dataChannel);
 
@@ -152,7 +143,11 @@
 
             peerConnection.onicecandidate = (event) => {
                 if (event.candidate) {
-                    sendSignalingPayload(targetPeerId, { type: 'ice_candidate', candidate: event.candidate, senderId: mySessionId });
+                    sendSignalingPayload(targetPeerId, {
+                        type: 'ice_candidate',
+                        candidate: event.candidate,
+                        senderId: mySessionId
+                    });
                 }
             };
 
@@ -163,33 +158,56 @@
             };
         }
 
+        // --- STEP 4: SIGNALING DATA PROCESSOR ---
         async function handleSignalingData(payload) {
+            // A. Someone joined the lobby while I am searching
             if (payload.type === 'lobby_pulse' && payload.senderId !== mySessionId && isSearching) {
                 isSearching = false;
-                mqttClient.unsubscribe(LOBBY_TOPIC);
-                updateStatus('Peer found. Initiating P2P Handshake...', '#58a6ff');
+                mqttClient.unsubscribe(LOBBY_TOPIC); // Leave lobby
+                updateStatus('Stranger found! Connecting...', '#58a6ff');
+                
                 initializeWebRTC(payload.senderId);
+                
                 const offer = await peerConnection.createOffer();
                 await peerConnection.setLocalDescription(offer);
-                sendSignalingPayload(payload.senderId, { type: 'rtc_offer', offer: offer, senderId: mySessionId });
+                
+                sendSignalingPayload(payload.senderId, {
+                    type: 'rtc_offer',
+                    offer: offer,
+                    senderId: mySessionId
+                });
             }
 
+            // B. I received an Offer
             if (payload.type === 'rtc_offer' && isSearching) {
                 isSearching = false;
                 mqttClient.unsubscribe(LOBBY_TOPIC);
+                
                 initializeWebRTC(payload.senderId);
                 await peerConnection.setRemoteDescription(new RTCSessionDescription(payload.offer));
+                
                 const answer = await peerConnection.createAnswer();
                 await peerConnection.setLocalDescription(answer);
-                sendSignalingPayload(payload.senderId, { type: 'rtc_answer', answer: answer, senderId: mySessionId });
+                
+                sendSignalingPayload(payload.senderId, {
+                    type: 'rtc_answer',
+                    answer: answer,
+                    senderId: mySessionId
+                });
             }
 
+            // C. I received an Answer
             if (payload.type === 'rtc_answer') {
                 await peerConnection.setRemoteDescription(new RTCSessionDescription(payload.answer));
             }
 
+            // D. Network Path Exchange (ICE)
             if (payload.type === 'ice_candidate') {
-                try { await peerConnection.addIceCandidate(new RTCIceCandidate(payload.candidate)); } catch (e) {}
+                try {
+                    await peerConnection.addIceCandidate(new RTCIceCandidate(payload.candidate));
+                } catch (e) {
+                    console.error('ICE Error', e);
+                }
             }
         }
 
@@ -197,26 +215,31 @@
             mqttClient.publish(`krish_p2p_private_${targetId}`, JSON.stringify(payloadObj));
         }
 
+        // --- STEP 5: P2P MESSAGING ---
         function setupDataChannelListeners(channel) {
             channel.onopen = () => {
-                updateStatus('P2P Mesh Established. Connection Secure.', '#238636');
+                updateStatus('Connected!', '#238636');
                 UI.inputArea.style.display = 'flex';
-                enableWakeLock(); // Prevents Android from killing the screen
-                printSystemMessage('Stranger connected. End-to-End P2P linked.');
+                printSystemMessage('You are now chatting with a stranger.');
             };
 
-            channel.onmessage = (event) => renderMessage(event.data, 'stranger');
+            channel.onmessage = (event) => {
+                renderMessage(event.data, 'stranger');
+            };
+
             channel.onclose = () => terminateSession(true);
         }
 
         function sendDataChannelMessage() {
             const text = UI.msgInput.value.trim();
             if (text === '' || !dataChannel || dataChannel.readyState !== 'open') return;
+
             dataChannel.send(text);
             renderMessage(text, 'mine');
             UI.msgInput.value = '';
         }
 
+        // --- UTILITY FUNCTIONS ---
         function renderMessage(text, type) {
             const wrapper = document.createElement('div');
             wrapper.className = `message ${type === 'mine' ? 'my-message' : 'stranger-message'}`;
@@ -230,19 +253,28 @@
             wrapper.className = 'system-message';
             wrapper.innerText = text;
             UI.chatBox.appendChild(wrapper);
+            UI.chatBox.scrollTop = UI.chatBox.scrollHeight;
         }
 
-        function updateStatus(text, color) { UI.status.innerText = text; UI.status.style.color = color; }
-        function handleKeypress(e) { if (e.key === 'Enter') sendDataChannelMessage(); }
+        function updateStatus(text, color) {
+            UI.status.innerText = text;
+            UI.status.style.color = color;
+        }
+
+        function handleKeypress(e) {
+            if (e.key === 'Enter') sendDataChannelMessage();
+        }
 
         function terminateSession(isRemoteDisconnect = false) {
             if (peerConnection) peerConnection.close();
-            peerConnection = null; dataChannel = null; isSearching = false;
-            releaseWakeLock(); // Let OS sleep normally again
+            peerConnection = null;
+            dataChannel = null;
+            isSearching = false;
+            
             UI.inputArea.style.display = 'none';
             UI.findBtn.style.display = 'block';
             updateStatus('Disconnected.', '#da3633');
-            printSystemMessage(isRemoteDisconnect ? 'Stranger left.' : 'You left.');
+            printSystemMessage(isRemoteDisconnect ? 'Stranger has disconnected.' : 'You left the chat.');
         }
     </script>
 </body>
