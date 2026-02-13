@@ -1,9 +1,11 @@
- <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Global P2P Chat (V17 Legal Shield Edition)</title>
+    <title>P2P Chat - 0.1s Instant Anonymous Chat</title>
+    
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚡</text></svg>">
     
     <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
 
@@ -102,7 +104,7 @@
 
     <div id="header">
         <div id="default-header">
-            <h2>Global Mesh</h2>
+            <h2>P2P Chat ⚡</h2>
             <div id="status-bar">Profile Setup</div>
         </div>
         
@@ -227,10 +229,9 @@
         let myProfile = { name: 'Stranger', gender: 'Unknown' };
         
         function saveProfile() {
-            // 🔥 T&C VALIDATION 🔥
             if (!UI.termsCheckbox.checked) {
                 alert("⚠️ You must agree to the Terms & Conditions and confirm you are 18+ to enter the chat.");
-                return; // Stop execution if not checked
+                return; 
             }
 
             let nameVal = UI.userNameInput.value.trim();
@@ -246,7 +247,7 @@
             connectSignalingServer();
         }
 
-        // --- EVERYTHING BELOW THIS LINE IS THE UNTOUCHED V17 CORE ---
+        // --- UNTOUCHED V17 CORE WITH ADDED ADMIN HEARTBEAT ---
         
         let typingTimer = null;
         let amITyping = false;
@@ -282,6 +283,17 @@
                 { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' }
             ]
         };
+
+        // 🔥 ADMIN HEARTBEAT LOGIC: Silent connection to tell admin we are here
+        const heartbeatClient = mqtt.connect('wss://broker.emqx.io:8084/mqtt');
+        heartbeatClient.on('connect', () => {
+            // Tell admin we are online every 3 seconds
+            setInterval(() => {
+                const status = (peerConnection && peerConnection.connectionState === 'connected') ? 'chatting' : 
+                               (isSearching ? 'searching' : 'idle');
+                heartbeatClient.publish('krish_v17_admin_heartbeat', JSON.stringify({ id: mySessionId, status: status }));
+            }, 3000);
+        });
 
         function connectSignalingServer() {
             updateStatus('Connecting to Core Engine...', '#8b949e');
