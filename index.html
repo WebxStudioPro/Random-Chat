@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Global P2P Chat V6 (Memory Safe)</title>
+    <title>Global P2P Chat V7 (Load Balanced)</title>
     
     <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
 
@@ -32,8 +32,8 @@
 <body>
 
     <div id="header">
-        <h2>Global Mesh V6</h2>
-        <div id="status-bar">Connecting to Global Engine...</div>
+        <h2>Global Mesh V7</h2>
+        <div id="status-bar">Connecting to Engine...</div>
     </div>
 
     <div id="chat-window">
@@ -50,7 +50,6 @@
     </div>
 
     <script>
-        // --- CORE VARIABLES ---
         const UI = {
             status: document.getElementById('status-bar'),
             chatBox: document.getElementById('chat-window'),
@@ -59,7 +58,8 @@
             msgInput: document.getElementById('msg-input')
         };
 
-        const LOBBY_TOPIC = 'krish_global_mesh_lobby_fixed_v5'; 
+        // 🔥 THE MAGIC: SHARDING LOGIC (20 Slots created)
+        const TOTAL_SLOTS = 20; 
         const mySessionId = 'peer_' + Math.random().toString(36).substr(2, 9);
         const PRIVATE_TOPIC = `krish_p2p_private_${mySessionId}`;
         
@@ -67,25 +67,17 @@
         let peerConnection = null;
         let dataChannel = null;
         let isSearching = false;
+        let currentLobbySlot = ''; // Store the random slot assigned
 
         const rtcConfiguration = {
             iceServers: [
                 { urls: 'stun:stun.l.google.com:19302' },
                 { urls: 'stun:stun.cloudflare.com:3478' },
-                {
-                    urls: 'turn:openrelay.metered.ca:80',
-                    username: 'openrelayproject',
-                    credential: 'openrelayproject'
-                },
-                {
-                    urls: 'turn:openrelay.metered.ca:443',
-                    username: 'openrelayproject',
-                    credential: 'openrelayproject'
-                }
+                { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
+                { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' }
             ]
         };
 
-        // --- STEP 1: SIGNALING SERVER ---
         function connectSignalingServer() {
             mqttClient = mqtt.connect('wss://broker.emqx.io:8084/mqtt');
 
@@ -106,7 +98,6 @@
 
         connectSignalingServer();
 
-        // --- STEP 2: MATCHMAKING (RAM WIPE IMPLEMENTED HERE) ---
         function initiateMatchmaking() {
             if (!mqttClient || !mqttClient.connected) {
                 alert("Please wait for system to come online.");
@@ -115,20 +106,22 @@
 
             isSearching = true;
             UI.findBtn.style.display = 'none';
-            
-            // 🔥 WIPE RAM MEMORY: Cleans the chat box completely
             UI.chatBox.innerHTML = ''; 
 
-            updateStatus('Searching for a stranger...', '#d29922');
-            printSystemMessage('Scanning global network... Previous chats wiped from memory.');
+            // 🔥 ASSIGN A RANDOM SLOT BETWEEN 1 AND 20
+            const randomSlotNumber = Math.floor(Math.random() * TOTAL_SLOTS) + 1;
+            currentLobbySlot = `krish_mesh_lobby_v7_slot_${randomSlotNumber}`;
 
-            mqttClient.subscribe(LOBBY_TOPIC);
+            updateStatus(`Scanning Network (Slot ${randomSlotNumber})...`, '#d29922');
+            printSystemMessage(`Scanning for strangers...`);
+
+            // Join the specific random slot
+            mqttClient.subscribe(currentLobbySlot);
 
             const joinPulse = JSON.stringify({ type: 'lobby_pulse', senderId: mySessionId });
-            mqttClient.publish(LOBBY_TOPIC, joinPulse);
+            mqttClient.publish(currentLobbySlot, joinPulse);
         }
 
-        // --- STEP 3: WEBRTC CONNECTION HANDLING ---
         function initializeWebRTC(targetPeerId) {
             peerConnection = new RTCPeerConnection(rtcConfiguration);
 
@@ -142,11 +135,7 @@
 
             peerConnection.onicecandidate = (event) => {
                 if (event.candidate) {
-                    sendSignalingPayload(targetPeerId, {
-                        type: 'ice_candidate',
-                        candidate: event.candidate,
-                        senderId: mySessionId
-                    });
+                    sendSignalingPayload(targetPeerId, { type: 'ice_candidate', candidate: event.candidate, senderId: mySessionId });
                 }
             };
 
@@ -157,11 +146,10 @@
             };
         }
 
-        // --- STEP 4: SIGNALING DATA PROCESSOR ---
         async function handleSignalingData(payload) {
             if (payload.type === 'lobby_pulse' && payload.senderId !== mySessionId && isSearching) {
                 isSearching = false;
-                mqttClient.unsubscribe(LOBBY_TOPIC); 
+                mqttClient.unsubscribe(currentLobbySlot); 
                 updateStatus('Stranger found! Connecting...', '#58a6ff');
                 
                 initializeWebRTC(payload.senderId);
@@ -169,16 +157,12 @@
                 const offer = await peerConnection.createOffer();
                 await peerConnection.setLocalDescription(offer);
                 
-                sendSignalingPayload(payload.senderId, {
-                    type: 'rtc_offer',
-                    offer: offer,
-                    senderId: mySessionId
-                });
+                sendSignalingPayload(payload.senderId, { type: 'rtc_offer', offer: offer, senderId: mySessionId });
             }
 
             if (payload.type === 'rtc_offer' && isSearching) {
                 isSearching = false;
-                mqttClient.unsubscribe(LOBBY_TOPIC);
+                mqttClient.unsubscribe(currentLobbySlot);
                 
                 initializeWebRTC(payload.senderId);
                 await peerConnection.setRemoteDescription(new RTCSessionDescription(payload.offer));
@@ -186,11 +170,7 @@
                 const answer = await peerConnection.createAnswer();
                 await peerConnection.setLocalDescription(answer);
                 
-                sendSignalingPayload(payload.senderId, {
-                    type: 'rtc_answer',
-                    answer: answer,
-                    senderId: mySessionId
-                });
+                sendSignalingPayload(payload.senderId, { type: 'rtc_answer', answer: answer, senderId: mySessionId });
             }
 
             if (payload.type === 'rtc_answer') {
@@ -198,11 +178,7 @@
             }
 
             if (payload.type === 'ice_candidate') {
-                try {
-                    await peerConnection.addIceCandidate(new RTCIceCandidate(payload.candidate));
-                } catch (e) {
-                    console.error('ICE Error', e);
-                }
+                try { await peerConnection.addIceCandidate(new RTCIceCandidate(payload.candidate)); } catch (e) {}
             }
         }
 
@@ -210,7 +186,6 @@
             mqttClient.publish(`krish_p2p_private_${targetId}`, JSON.stringify(payloadObj));
         }
 
-        // --- STEP 5: P2P MESSAGING ---
         function setupDataChannelListeners(channel) {
             channel.onopen = () => {
                 updateStatus('Connected!', '#238636');
@@ -218,10 +193,7 @@
                 printSystemMessage('You are now chatting with a stranger.');
             };
 
-            channel.onmessage = (event) => {
-                renderMessage(event.data, 'stranger');
-            };
-
+            channel.onmessage = (event) => { renderMessage(event.data, 'stranger'); };
             channel.onclose = () => terminateSession(true);
         }
 
@@ -234,7 +206,6 @@
             UI.msgInput.value = '';
         }
 
-        // --- UTILITY FUNCTIONS ---
         function renderMessage(text, type) {
             const wrapper = document.createElement('div');
             wrapper.className = `message ${type === 'mine' ? 'my-message' : 'stranger-message'}`;
@@ -251,29 +222,17 @@
             UI.chatBox.scrollTop = UI.chatBox.scrollHeight;
         }
 
-        function updateStatus(text, color) {
-            UI.status.innerText = text;
-            UI.status.style.color = color;
-        }
+        function updateStatus(text, color) { UI.status.innerText = text; UI.status.style.color = color; }
+        function handleKeypress(e) { if (e.key === 'Enter') sendDataChannelMessage(); }
 
-        function handleKeypress(e) {
-            if (e.key === 'Enter') sendDataChannelMessage();
-        }
-
-        // --- DISCONNECT (RAM WIPE IMPLEMENTED HERE) ---
         function terminateSession(isRemoteDisconnect = false) {
             if (peerConnection) peerConnection.close();
-            peerConnection = null;
-            dataChannel = null;
-            isSearching = false;
+            peerConnection = null; dataChannel = null; isSearching = false;
             
             UI.inputArea.style.display = 'none';
             UI.findBtn.style.display = 'block';
             updateStatus('Disconnected.', '#da3633');
-            
-            // 🔥 WIPE RAM MEMORY: Cleans the chat box on disconnect
             UI.chatBox.innerHTML = ''; 
-
             printSystemMessage(isRemoteDisconnect ? 'Stranger left the chat. History permanently deleted.' : 'You left the chat. History permanently deleted.');
         }
     </script>
