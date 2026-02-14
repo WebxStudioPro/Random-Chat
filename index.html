@@ -40,15 +40,28 @@
         #typing-indicator { font-size: 12px; color: #3fb950; font-weight: bold; display: none; font-style: italic; animation: pulse 1.5s infinite; }
         @keyframes pulse { 0% { opacity: 0.5; } 50% { opacity: 1; } 100% { opacity: 0.5; } }
         
-        #setup-container { flex: 1; display: flex; flex-direction: column; justify-content: center; padding: 20px; background: radial-gradient(circle at center, #161b22 0%, #0d1117 100%);}
+        /* 🔥 SEO SETUP CONTAINER UPDATE 🔥 */
+        #setup-container { 
+            flex: 1; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            padding: 20px; 
+            background: radial-gradient(circle at center, #161b22 0%, #0d1117 100%);
+            overflow-y: auto; 
+        }
+        
         .setup-box { 
+            width: 100%;
+            max-width: 420px;
             background: rgba(22, 27, 34, 0.6); 
             backdrop-filter: blur(12px);
             padding: 35px 25px; 
             border-radius: 24px; 
             border: 1px solid rgba(255,255,255,0.08); 
             box-shadow: 0 25px 50px rgba(0,0,0,0.5), inset 0 0 0 1px rgba(255,255,255,0.02); 
-            transform: translateY(-10px);
+            margin-top: 2vh;
+            flex-shrink: 0;
         }
         .setup-box h3 { color: white; text-align: center; margin-bottom: 30px; font-size: 22px; letter-spacing: 1px; font-weight: 700;}
         .input-group { margin-bottom: 22px; }
@@ -93,6 +106,22 @@
         }
         #save-profile-btn:active { background: #2ea043; transform: scale(0.97); box-shadow: 0 4px 10px rgba(35, 134, 54, 0.4);}
         
+        /* 🔥 NEW SEO ARTICLE CSS (FOR GOOGLE RANKING) 🔥 */
+        .seo-article {
+            width: 100%;
+            max-width: 700px;
+            margin-top: 40px;
+            margin-bottom: 20px;
+            padding: 20px;
+            color: #8b949e;
+            flex-shrink: 0;
+            text-align: left;
+        }
+        .seo-article h1, .seo-article h2 { color: #c9d1d9; font-size: 18px; margin-bottom: 12px; font-weight: bold;}
+        .seo-article h3 { color: #c9d1d9; font-size: 15px; margin-top: 20px; margin-bottom: 8px;}
+        .seo-article p { font-size: 13px; line-height: 1.6; margin-bottom: 15px;}
+        .seo-article strong { color: #58a6ff; font-weight: normal;}
+
         #chat-window { flex: 1; overflow-y: auto; padding: 20px 15px; display: none; flex-direction: column; gap: 12px; scroll-behavior: smooth;}
         .message { padding: 12px 16px; border-radius: 18px; max-width: 85%; font-size: 15px; word-wrap: break-word; box-shadow: 0 2px 5px rgba(0,0,0,0.15); position: relative; line-height: 1.4;}
         .my-message { background: #238636; color: white; align-self: flex-end; border-bottom-right-radius: 4px; }
@@ -216,6 +245,17 @@
 
             <button id="save-profile-btn" onclick="saveProfile()">Enter Lobby</button>
         </div>
+
+        <article class="seo-article">
+            <h1>Experience the Best Random Chat Online</h1>
+            <p>Welcome to the most advanced <strong>peer to peer chat</strong> platform. If you are looking to <strong>chat with strangers</strong> securely and instantly, you have found the right place. Our <strong>online chat</strong> engine uses cutting-edge WebRTC technology to connect you directly with users worldwide, ensuring a seamless and fully anonymous experience.</p>
+            
+            <h3>Why is our Stranger Chat 100% Secure?</h3>
+            <p>Unlike traditional chat apps, our <strong>anonymous chat</strong> system does not store your private messages, images, or audio voice notes on any central server. By utilizing a direct P2P network, your data travels strictly between you and the stranger. This means your private <strong>chat with stranger</strong> sessions remain completely confidential and secure.</p>
+            
+            <h3>Lightning Fast Matchmaking</h3>
+            <p>Tired of waiting for connections? Our unique high-frequency network radar scans hundreds of global slots to find you a <strong>stranger chat</strong> partner in milliseconds. Whether you want to make new friends, practice a foreign language, or simply enjoy a quick <strong>random chat</strong>, our server-less engine ensures zero lag and instant connectivity.</p>
+        </article>
     </div>
 
     <div id="chat-window">
