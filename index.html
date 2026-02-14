@@ -20,7 +20,7 @@
         
         body { background-color: #0d1117; color: #c9d1d9; display: flex; flex-direction: column; height: 100vh; height: 100dvh; overflow: hidden; }
         
-        /* 🔥 THE FIX: SPACER HEIGHT INCREASED FROM 85px TO 140px 🔥 */
+        /* 🔥 SPACER FOR ADSTERRA ADS (140px HEIGHT) 🔥 */
         #ad-spacer { width: 100%; height: 140px; flex-shrink: 0; background: transparent; }
 
         #header { padding: 15px; background: rgba(22, 27, 34, 0.95); backdrop-filter: blur(5px); text-align: center; border-bottom: 1px solid #30363d; box-shadow: 0 4px 15px rgba(0,0,0,0.4); z-index: 10; min-height: 70px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: all 0.3s ease;}
@@ -253,7 +253,6 @@
         function showExitModal() { UI.exitModal.style.display = 'flex'; }
         function closeModal() { UI.exitModal.style.display = 'none'; }
         function confirmExit() { closeModal(); terminateSession(); }
-        
         function showTncModal() { UI.tncModal.style.display = 'flex'; }
         function closeTncModal() { UI.tncModal.style.display = 'none'; }
 
@@ -285,19 +284,18 @@
         let recordTimerInterval = null;
         let recordSeconds = 0;
 
-        // 🔥 THE DUAL-WAVE TRINITY ENGINE (100% SAFE) 🔥
+        // 🔥 MAGNETIC POLE ANTI-COLLISION ENGINE 🔥
         let mySessionId = 'peer_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-        
-        // WAVE 1: GLOBAL SONAR LOBBY
         const GLOBAL_LOBBY_TOPIC = 'krish_v17_global_sonar_lobby';
-        // WAVE 2: PRIVATE PEER MAGNET 
         const PRIVATE_TOPIC = `krish_v17_private_${mySessionId}`;
         
         let globalSonarTimer = null; 
         let mqttClient = null;
         let peerConnection = null;
         let dataChannel = null;
-        let isSearching = false;
+        
+        let isSearching = false; 
+        let isLocked = false; // 🔥 TRUE = NORTH POLE (Busy), FALSE = SOUTH POLE (Free)
 
         const rtcConfiguration = {
             iceServers: [
@@ -334,6 +332,7 @@
             }
 
             isSearching = true;
+            isLocked = false; // Become South Pole (Free)
             currentUserState = 'SEARCHING'; 
             UI.findBtn.style.display = 'none';
             UI.chatBox.innerHTML = ''; 
@@ -348,50 +347,73 @@
         }
 
         function sendGlobalSonarPulse() {
-            if (!isSearching) return;
+            if (!isSearching || isLocked) return;
             const pulse = JSON.stringify({ type: 'sonar_pulse', senderId: mySessionId });
             mqttClient.publish(GLOBAL_LOBBY_TOPIC, pulse);
 
             clearTimeout(globalSonarTimer);
             globalSonarTimer = setTimeout(() => {
-                if (isSearching) {
+                if (isSearching && !isLocked) {
                     sendGlobalSonarPulse();
                 }
             }, 1500);
         }
 
         function lockEngineAndHideEars() {
-            isSearching = false;
+            isLocked = true; // Become North Pole (Busy)
             clearTimeout(globalSonarTimer);
-            mqttClient.unsubscribe(GLOBAL_LOBBY_TOPIC);
+            mqttClient.unsubscribe(GLOBAL_LOBBY_TOPIC); // Hide from lobby
         }
 
         async function handleSignalingData(topic, payload) {
             
-            if (topic === GLOBAL_LOBBY_TOPIC && payload.type === 'sonar_pulse' && payload.senderId !== mySessionId && isSearching) {
+            // 1. SOMEONE FOUND ME IN LOBBY
+            if (topic === GLOBAL_LOBBY_TOPIC && payload.type === 'sonar_pulse' && payload.senderId !== mySessionId && isSearching && !isLocked) {
                 if (mySessionId > payload.senderId) {
-                    lockEngineAndHideEars();
-                    updateStatus('Stranger locked! Pulling into private slot...', '#58a6ff');
-                    
+                    lockEngineAndHideEars(); // I am North Pole now
+                    updateStatus('Target found! Requesting lock...', '#58a6ff');
+                    // Send Pull request to their Private Room
                     sendSignalingPayload(payload.senderId, { type: 'magnet_pull', senderId: mySessionId });
-                    
-                    initializeWebRTC(payload.senderId);
-                    const offer = await peerConnection.createOffer();
-                    await peerConnection.setLocalDescription(offer);
-                    sendSignalingPayload(payload.senderId, { type: 'rtc_offer', offer: offer, senderId: mySessionId });
                 }
             }
 
-            if (topic === PRIVATE_TOPIC && payload.type === 'magnet_pull' && payload.senderId !== mySessionId && isSearching) {
-                lockEngineAndHideEars();
-                updateStatus('Magnetic Lock Activated! Synchronizing...', '#58a6ff');
-                initializeWebRTC(payload.senderId);
+            // 2. SOMEONE IS PULLING ME TO THEIR ROOM
+            if (topic === PRIVATE_TOPIC && payload.type === 'magnet_pull' && payload.senderId !== mySessionId) {
+                if (isSearching && !isLocked) {
+                    // I am free (South Pole)! I accept.
+                    lockEngineAndHideEars(); // I become North Pole too
+                    updateStatus('Magnetic Lock Accepted! Synchronizing...', '#58a6ff');
+                    
+                    sendSignalingPayload(payload.senderId, { type: 'magnet_accept', senderId: mySessionId });
+                    initializeWebRTC(payload.senderId);
+                } else {
+                    // I AM BUSY (North Pole)! Give them a Jhatka (Repel) ⚡
+                    sendSignalingPayload(payload.senderId, { type: 'magnet_repel', senderId: mySessionId });
+                }
             }
 
+            // 3. TARGET ACCEPTED MY PULL (Proceed to WebRTC)
+            if (topic === PRIVATE_TOPIC && payload.type === 'magnet_accept' && payload.senderId !== mySessionId && isLocked) {
+                updateStatus('Lock Confirmed! Securing link...', '#58a6ff');
+                initializeWebRTC(payload.senderId);
+                const offer = await peerConnection.createOffer();
+                await peerConnection.setLocalDescription(offer);
+                sendSignalingPayload(payload.senderId, { type: 'rtc_offer', offer: offer, senderId: mySessionId });
+            }
+
+            // 4. TARGET WAS BUSY (I got a Jhatka / Repel) ⚡
+            if (topic === PRIVATE_TOPIC && payload.type === 'magnet_repel' && payload.senderId !== mySessionId && isLocked) {
+                printSystemMessage('Stranger was busy. Bouncing back to lobby...');
+                isLocked = false; // Become South Pole again
+                // Re-enter the Lobby silently
+                mqttClient.subscribe(GLOBAL_LOBBY_TOPIC, () => {
+                    sendGlobalSonarPulse();
+                });
+            }
+
+            // 5. WEBRTC HANDSHAKE (Only happens if successfully locked)
             if (topic === PRIVATE_TOPIC && payload.type === 'rtc_offer' && payload.senderId !== mySessionId) {
-                if (isSearching) { lockEngineAndHideEars(); }
                 if (!peerConnection) { initializeWebRTC(payload.senderId); }
-                
                 updateStatus('Securing End-to-End Encryption...', '#58a6ff');
                 await peerConnection.setRemoteDescription(new RTCSessionDescription(payload.offer));
                 
@@ -665,7 +687,11 @@
             peerConnection = null; 
             dataChannel = null; 
             
-            lockEngineAndHideEars(); 
+            isSearching = false;
+            isLocked = false; // Reset to South Pole
+            clearTimeout(globalSonarTimer);
+            if(mqttClient) mqttClient.unsubscribe(GLOBAL_LOBBY_TOPIC);
+            
             clearTimeout(typingTimer);
             amITyping = false;
             
