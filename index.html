@@ -11,11 +11,9 @@
 
     <style>
         * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, sans-serif; margin: 0; }
-        
         body { background-color: #0d1117; color: #c9d1d9; display: flex; flex-direction: column; height: 100vh; height: 100dvh; overflow: hidden; }
         
         #header { padding: 15px; background: #161b22; text-align: center; border-bottom: 1px solid #30363d; box-shadow: 0 4px 6px rgba(0,0,0,0.3); z-index: 10; min-height: 70px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: all 0.3s ease;}
-        
         #default-header { width: 100%; }
         #default-header h2 { color: #58a6ff; font-size: 20px; text-transform: uppercase; letter-spacing: 1px; }
         #status-bar { font-size: 13px; color: #8b949e; margin-top: 5px; font-weight: bold; }
@@ -223,8 +221,7 @@
 
         let myProfile = { name: 'Stranger', gender: 'Unknown' };
         
-        // 🔥 THE ULTIMATE FIX: Exact State Variable 🔥
-        let currentUserState = 'SETUP'; // Default state on open
+        let currentUserState = 'SETUP'; 
         
         function saveProfile() {
             if (!UI.termsCheckbox.checked) {
@@ -242,7 +239,7 @@
             UI.chatBox.style.display = 'flex';
             UI.actionArea.style.display = 'flex'; 
             
-            currentUserState = 'LOBBY'; // Fixed State
+            currentUserState = 'LOBBY'; 
             connectSignalingServer();
         }
 
@@ -254,14 +251,15 @@
         let recordTimerInterval = null;
         let recordSeconds = 0;
 
-        const TOTAL_SLOTS = 20; 
+        // 🔥 THE MEGA UPGRADE: 200 Slots for the MRI Electric Magnet Field 🔥
+        const TOTAL_SLOTS = 200; 
         
         let mySessionId = 'peer_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
         let PRIVATE_TOPIC = `krish_v17_private_${mySessionId}`;
         
-        let all20Slots = [];
+        let all200Slots = [];
         for(let i = 1; i <= TOTAL_SLOTS; i++) {
-            all20Slots.push(`krish_v17_slot_${i}`);
+            all200Slots.push(`krish_v17_slot_${i}`);
         }
 
         let myPublishSlot = ''; 
@@ -307,14 +305,16 @@
             }
 
             isSearching = true;
-            currentUserState = 'SEARCHING'; // Fixed State
+            currentUserState = 'SEARCHING'; 
             
             UI.findBtn.style.display = 'none';
             UI.chatBox.innerHTML = ''; 
-            updateStatus('Monster Ears Active (Scanning 20 Slots)...', '#d29922');
-            printSystemMessage('Deploying Omni-Directional Radar. Unbreakable connection...');
+            
+            // 🔥 UPDATE: MRI Electric Magnet Terminology 🔥
+            updateStatus('MRI Electromagnetic Field Active (Scanning 200 Slots)...', '#d29922');
+            printSystemMessage('Deploying High-Frequency MRI Radar. Pulling targets from global grid...');
 
-            mqttClient.subscribe(all20Slots);
+            mqttClient.subscribe(all200Slots);
             
             const randomSlotNum = Math.floor(Math.random() * TOTAL_SLOTS) + 1;
             myPublishSlot = `krish_v17_slot_${randomSlotNum}`;
@@ -333,14 +333,15 @@
         function lockEngineAndHideEars() {
             isSearching = false;
             clearInterval(magnetPulseTimer);
-            mqttClient.unsubscribe(all20Slots);
+            mqttClient.unsubscribe(all200Slots);
         }
 
         async function handleSignalingData(payload) {
             if (payload.type === 'magnet_pulse' && payload.senderId !== mySessionId && isSearching) {
                 if (mySessionId > payload.senderId) {
                     lockEngineAndHideEars();
-                    updateStatus('Monster Locked! Initiating private link...', '#58a6ff');
+                    // 🔥 UPDATE: MRI Electric Magnet Terminology 🔥
+                    updateStatus('MRI Magnet Locked! Initiating private link...', '#58a6ff');
                     
                     sendSignalingPayload(payload.senderId, { type: 'magnet_pull', senderId: mySessionId });
                     
@@ -353,7 +354,8 @@
 
             if (payload.type === 'magnet_pull' && payload.senderId !== mySessionId && isSearching) {
                 lockEngineAndHideEars();
-                updateStatus('Pulled by Monster Magnet! Preparing link...', '#58a6ff');
+                // 🔥 UPDATE: MRI Electric Magnet Terminology 🔥
+                updateStatus('Pulled by MRI Electric Magnet! Preparing link...', '#58a6ff');
                 initializeWebRTC(payload.senderId);
             }
 
@@ -414,7 +416,7 @@
 
         function setupDataChannelListeners(channel) {
             channel.onopen = () => {
-                currentUserState = 'CHATTING'; // Fixed State
+                currentUserState = 'CHATTING'; 
                 UI.inputArea.style.display = 'flex';
                 const introPacket = JSON.stringify({ type: 'intro', profile: myProfile });
                 dataChannel.send(introPacket);
@@ -641,8 +643,7 @@
             
             cancelAudioRecording();
             
-            // 🔥 FIXED PHANTOM LOBBY BUG: ID is NOT regenerated on disconnect anymore.
-            currentUserState = 'LOBBY'; // Go back to lobby exactly
+            currentUserState = 'LOBBY'; 
 
             UI.chatHeader.style.display = 'none';
             UI.typingIndicator.style.display = 'none';
@@ -661,7 +662,6 @@
             }
         }
 
-        // 🔥 ADMIN RADAR SYNC (FLAWLESS VARIABLE EDITION) 🔥
         const adminSyncClient = mqtt.connect('wss://broker.emqx.io:8084/mqtt');
         
         adminSyncClient.on('connect', () => {
@@ -678,7 +678,7 @@
                 };
                 
                 adminSyncClient.publish('krish_v17_admin_radar_sync', JSON.stringify(payload));
-            }, 2000); // Super fast 2-second update
+            }, 2000); 
         });
     </script>
 </body>
