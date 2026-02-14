@@ -20,8 +20,8 @@
         
         body { background-color: #0d1117; color: #c9d1d9; display: flex; flex-direction: column; height: 100vh; height: 100dvh; overflow: hidden; }
         
-        /* ADSTERRA SAFETY SPACER (100% SAFE) */
-        #ad-spacer { width: 100%; height: 85px; flex-shrink: 0; background: transparent; }
+        /* 🔥 THE FIX: SPACER HEIGHT INCREASED FROM 85px TO 140px 🔥 */
+        #ad-spacer { width: 100%; height: 140px; flex-shrink: 0; background: transparent; }
 
         #header { padding: 15px; background: rgba(22, 27, 34, 0.95); backdrop-filter: blur(5px); text-align: center; border-bottom: 1px solid #30363d; box-shadow: 0 4px 15px rgba(0,0,0,0.4); z-index: 10; min-height: 70px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: all 0.3s ease;}
         
@@ -285,7 +285,7 @@
         let recordTimerInterval = null;
         let recordSeconds = 0;
 
-        // 🔥 THE NEW DUAL-WAVE TRINITY ENGINE 🔥
+        // 🔥 THE DUAL-WAVE TRINITY ENGINE (100% SAFE) 🔥
         let mySessionId = 'peer_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
         
         // WAVE 1: GLOBAL SONAR LOBBY
@@ -314,7 +314,6 @@
 
             mqttClient.on('connect', () => {
                 updateStatus(`Welcome, ${myProfile.name}. Ready to connect.`, '#3fb950');
-                // Chupchaap apne private room (Wave 2) me baith jao 
                 mqttClient.subscribe(PRIVATE_TOPIC); 
             });
 
@@ -342,7 +341,6 @@
             updateStatus('Deploying Global Sonar... Scanning world...', '#d29922');
             printSystemMessage('Dual-Wave Engine Active. Searching for strangers...');
 
-            // Step 1: Subscribe to Global Lobby
             mqttClient.subscribe(GLOBAL_LOBBY_TOPIC, () => {
                 if(!isSearching) return;
                 sendGlobalSonarPulse();
@@ -351,11 +349,9 @@
 
         function sendGlobalSonarPulse() {
             if (!isSearching) return;
-            // Send pulse to the Global Room
             const pulse = JSON.stringify({ type: 'sonar_pulse', senderId: mySessionId });
             mqttClient.publish(GLOBAL_LOBBY_TOPIC, pulse);
 
-            // Repeat sonar every 1.5 seconds if nobody is found yet
             clearTimeout(globalSonarTimer);
             globalSonarTimer = setTimeout(() => {
                 if (isSearching) {
@@ -367,20 +363,16 @@
         function lockEngineAndHideEars() {
             isSearching = false;
             clearTimeout(globalSonarTimer);
-            // Instantly leave the Global Room to hide from Guard (IP ban protection)
             mqttClient.unsubscribe(GLOBAL_LOBBY_TOPIC);
         }
 
         async function handleSignalingData(topic, payload) {
             
-            // LOGIC 1: TWO STRANGERS MEET IN THE GLOBAL SONAR
             if (topic === GLOBAL_LOBBY_TOPIC && payload.type === 'sonar_pulse' && payload.senderId !== mySessionId && isSearching) {
-                // Determine who calls who to avoid double calling
                 if (mySessionId > payload.senderId) {
                     lockEngineAndHideEars();
                     updateStatus('Stranger locked! Pulling into private slot...', '#58a6ff');
                     
-                    // Directly send Magnet Pull to their Private Room
                     sendSignalingPayload(payload.senderId, { type: 'magnet_pull', senderId: mySessionId });
                     
                     initializeWebRTC(payload.senderId);
@@ -390,14 +382,12 @@
                 }
             }
 
-            // LOGIC 2: I GOT PULLED INTO A PRIVATE ROOM BY A STRANGER
             if (topic === PRIVATE_TOPIC && payload.type === 'magnet_pull' && payload.senderId !== mySessionId && isSearching) {
                 lockEngineAndHideEars();
                 updateStatus('Magnetic Lock Activated! Synchronizing...', '#58a6ff');
                 initializeWebRTC(payload.senderId);
             }
 
-            // LOGIC 3: WEBRTC HANDSHAKE IN PRIVATE ROOM
             if (topic === PRIVATE_TOPIC && payload.type === 'rtc_offer' && payload.senderId !== mySessionId) {
                 if (isSearching) { lockEngineAndHideEars(); }
                 if (!peerConnection) { initializeWebRTC(payload.senderId); }
@@ -446,7 +436,6 @@
         }
 
         function sendSignalingPayload(targetId, payloadObj) {
-            // Direct injection to their private room (Wave 2)
             mqttClient.publish(`krish_v17_private_${targetId}`, JSON.stringify(payloadObj));
         }
 
@@ -701,7 +690,7 @@
             }
         }
 
-        // 🔥 PURANA ADMIN PANEL 100% UNTOUCHED 🔥
+        // 🔥 ADMIN PANEL (100% SAFE) 🔥
         const adminSyncClient = mqtt.connect('wss://broker.emqx.io:8084/mqtt');
         
         adminSyncClient.on('connect', () => {
