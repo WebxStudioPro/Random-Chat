@@ -229,6 +229,17 @@
     </div>
 
     <script>
+        /* ═══════════════════════════════════════════════════════════════════
+         * v4.0 "THE SILENCED SNIPER" MATCHMAKING ENGINE
+         * ─────────────────────────────────────────────────────────────────
+         * STRATEGY:
+         * - 10 Slots Kept for 2000+ users scalability.
+         * - Everyone listens to all 10 slots continuously (0 server load).
+         * - When searching, pulse is fired ONCE immediately, then very slowly
+         * (every 1.5 seconds) on 1 single slot to bypass EMQX Guard.
+         * - WebRTC Shield added to prevent instant disconnects.
+         * ═══════════════════════════════════════════════════════════════════ */
+
         const UI = {
             defaultHeader: document.getElementById('default-header'),
             chatHeader: document.getElementById('chat-header'),
@@ -250,14 +261,15 @@
             micBtn: document.getElementById('mic-btn')
         };
 
-        // 🔥 THE AD MULTIPLIER TRICK (Added Helper Function) 🔥
+        // 🔥 THE AD MULTIPLIER TRICK (10s Anti-Ban Shield Active) 🔥
+        let lastAdRefreshTime = 0;
         function triggerAdRefresh() {
+            const now = Date.now();
+            if (now - lastAdRefreshTime < 10000) return;
+            lastAdRefreshTime = now;
             try {
-                // Find old adsterra script and remove it safely
                 const oldScripts = document.querySelectorAll('script[src*="effectivegatecpm.com"]');
                 oldScripts.forEach(script => script.remove());
-                
-                // Inject fresh script to force a new Ad Impression
                 const newScript = document.createElement('script');
                 newScript.type = 'text/javascript';
                 newScript.src = 'https://pl28713238.effectivegatecpm.com/41/29/39/41293924c20c7ebf57324ed041cb2eee.js';
@@ -273,12 +285,13 @@
         function closeTncModal() { UI.tncModal.style.display = 'none'; }
 
         let myProfile = { name: 'Stranger', gender: 'Unknown' };
-        let currentUserState = 'SETUP'; 
+        let currentUserState = 'SETUP';
+        let adRefreshInterval = null;
         
         function saveProfile() {
             if (!UI.termsCheckbox.checked) {
                 alert("⚠️ You must agree to the Platform Rules and confirm you are 18+ to enter.");
-                return; 
+                return;
             }
             let nameVal = UI.userNameInput.value.trim();
             if(nameVal === '') nameVal = 'Stranger';
@@ -287,10 +300,12 @@
 
             UI.setupContainer.style.display = 'none';
             UI.chatBox.style.display = 'flex';
-            UI.actionArea.style.display = 'flex'; 
+            UI.actionArea.style.display = 'flex';
             
-            currentUserState = 'LOBBY'; 
+            currentUserState = 'LOBBY';
             connectSignalingServer();
+            
+            triggerAdRefresh();
         }
 
         let typingTimer = null;
@@ -300,41 +315,51 @@
         let recordTimerInterval = null;
         let recordSeconds = 0;
 
-        let mySessionId = 'peer_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
+        let mySessionId = 'peer_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        const MY_INBOX_TOPIC = `krish_v17_inbox_${mySessionId}`;
+
+        // 🔥 THE SILENCER CONFIGURATION 🔥
+        const NUM_LOBBY_SLOTS = 10;
+        const PULSE_BASE_INTERVAL = 1500; // Slow pulse to bypass guard (1.5s)
+        const PULSE_JITTER = 200;
         
-        const MAGNET_LOBBY_TOPIC = 'krish_v17_global_magnet_lobby';
-        const MY_INBOX_TOPIC = `krish_v17_inbox_${mySessionId}`; 
-        
-        let lobbyPulseTimer = null; 
-        let pullTimeoutTimer = null; 
+        const PULL_TIMEOUT = 4000; 
+        const WEBRTC_TIMEOUT = 10000;
+        const BOUNCE_BASE_DELAY = 40;
+        const MAX_BOUNCE_ATTEMPTS = 8;
+
+        let listenSlots = [];
+        let currentSlotFired = null;
+        let lobbyPulseTimer = null;
+        let pullTimeoutTimer = null;
         let webrtcTimeoutTimer = null;
-        
-        let discoveredPeers = [];
-        let peerSelectionTimer = null;
-        
+        let bounceAttempts = 0;
+
+        function getSlotTopic(slot) { return `krish_v17_magnet_slot_${slot}`; }
+
         function pairHash(idA, idB) {
             const combined = idA < idB ? idA + '|' + idB : idB + '|' + idA;
-            let hash = 0;
+            let hash = 5381;
             for (let i = 0; i < combined.length; i++) {
-                hash = ((hash << 5) - hash) + combined.charCodeAt(i);
-                hash = hash & hash;
+                hash = ((hash << 5) + hash + combined.charCodeAt(i)) & 0x7FFFFFFF;
             }
             return hash;
         }
-        
+
         function shouldIInitiate(myId, theirId) {
             const h = pairHash(myId, theirId);
-            if (h % 2 === 0) return myId > theirId;
-            return myId < theirId;
+            const bit0 = h & 1;
+            const lexOrder = myId < theirId ? 0 : 1;
+            return (bit0 ^ lexOrder) === 1;
         }
-        
+
         let mqttClient = null;
         let peerConnection = null;
         let dataChannel = null;
         
-        let isSearching = false; 
-        let isLocked = false; 
-        let activeTargetId = null; 
+        let isSearching = false;
+        let isLocked = false;
+        let activeTargetId = null;
 
         const rtcConfiguration = {
             iceServers: [
@@ -347,21 +372,28 @@
 
         function connectSignalingServer() {
             updateStatus('Connecting to network...', '#8b949e');
-            mqttClient = mqtt.connect('wss://broker.emqx.io:8084/mqtt');
+            
+            mqttClient = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
+                clientId: mySessionId,
+                clean: true,
+                connectTimeout: 10000,
+                reconnectPeriod: 3000,
+                keepalive: 30
+            });
 
             mqttClient.on('connect', () => {
                 updateStatus(`Welcome, ${myProfile.name}. Ready to connect.`, '#3fb950');
-                
-                mqttClient.subscribe(MAGNET_LOBBY_TOPIC);
-                mqttClient.subscribe(MY_INBOX_TOPIC); 
+                mqttClient.subscribe(MY_INBOX_TOPIC, { qos: 0 });
             });
 
-            mqttClient.on('message', async (topic, message) => {
-                const payload = JSON.parse(message.toString());
-                handleSignalingData(topic, payload);
+            mqttClient.on('message', (topic, message) => {
+                try {
+                    const payload = JSON.parse(message.toString());
+                    handleSignalingData(topic, payload);
+                } catch(e) {}
             });
             
-            mqttClient.on('error', (err) => {
+            mqttClient.on('error', () => {
                 updateStatus('Network Error. Reconnecting...', '#da3633');
             });
         }
@@ -372,44 +404,62 @@
                 return;
             }
 
-            // 🔥 Multiplier: Connect dabate hi Ad refresh hoga! 🔥
             triggerAdRefresh();
 
             isSearching = true;
-            isLocked = false; 
-            activeTargetId = null; 
+            isLocked = false;
+            activeTargetId = null;
+            bounceAttempts = 0;
             
-            clearTimeout(lobbyPulseTimer);
-            clearTimeout(pullTimeoutTimer);
-            clearTimeout(webrtcTimeoutTimer);
-            clearTimeout(peerSelectionTimer);
-            peerSelectionTimer = null;
-            discoveredPeers = [];
+            clearAllMatchmakingTimers();
             
-            currentUserState = 'SEARCHING'; 
+            currentUserState = 'SEARCHING';
             UI.findBtn.style.display = 'none';
-            UI.chatBox.innerHTML = ''; 
+            UI.chatBox.innerHTML = '';
             
             updateStatus('Activating Magnet... Scanning Lobby...', '#d29922');
             printSystemMessage('Magnet Engine Active. Searching for strangers...');
 
-            sendLobbyPulse();
+            joinAndSnipe();
         }
 
-        function sendLobbyPulse() {
-            if (!isSearching || isLocked) return;
-            const pulse = JSON.stringify({ type: 'lobby_pulse', senderId: mySessionId });
-            mqttClient.publish(MAGNET_LOBBY_TOPIC, pulse);
+        function joinAndSnipe() {
+            // Listen to ALL slots (Silent radar)
+            if (listenSlots.length === 0) {
+                for (let i = 0; i < NUM_LOBBY_SLOTS; i++) {
+                    mqttClient.subscribe(getSlotTopic(i), { qos: 0 });
+                }
+                listenSlots = Array.from({length: NUM_LOBBY_SLOTS}, (_, i) => i);
+            }
+            
+            // Fire the first bullet INSTANTLY (0.1s match)
+            fireSniperPulse();
+        }
 
+        function fireSniperPulse() {
+            if (!isSearching || isLocked) return;
+            
+            // Pick exactly ONE slot to fire the bullet into
+            const r = Math.floor(Math.random() * NUM_LOBBY_SLOTS);
+            currentSlotFired = r;
+            
+            const pulse = JSON.stringify({
+                type: 'lobby_pulse',
+                senderId: mySessionId,
+                ts: Date.now()
+            });
+            mqttClient.publish(getSlotTopic(r), pulse, { qos: 0 });
+
+            // Silencer: Wait 1.5 seconds before firing again to bypass Guard
             clearTimeout(lobbyPulseTimer);
-            const jitter = 800 + Math.floor(Math.random() * 1200); 
+            const interval = PULSE_BASE_INTERVAL + Math.floor(Math.random() * PULSE_JITTER * 2);
             lobbyPulseTimer = setTimeout(() => {
-                if (isSearching && !isLocked) sendLobbyPulse();
-            }, jitter);
+                if (isSearching && !isLocked) fireSniperPulse();
+            }, interval);
         }
 
         function sendToInbox(targetId, payloadObj) {
-            mqttClient.publish(`krish_v17_inbox_${targetId}`, JSON.stringify(payloadObj));
+            mqttClient.publish(`krish_v17_inbox_${targetId}`, JSON.stringify(payloadObj), { qos: 0 });
         }
 
         function bounceBackToLobby(reasonMessage) {
@@ -419,15 +469,23 @@
             if (peerConnection) { peerConnection.close(); peerConnection = null; }
             dataChannel = null;
             clearTimeout(webrtcTimeoutTimer);
+            clearTimeout(pullTimeoutTimer);
             
-            isLocked = false; 
+            isLocked = false;
             activeTargetId = null;
-            discoveredPeers = [];
-            clearTimeout(peerSelectionTimer);
-            peerSelectionTimer = null;
-            updateStatus('Activating Magnet... Scanning Lobby...', '#d29922');
             
-            sendLobbyPulse();
+            bounceAttempts++;
+            
+            const expDelay = BOUNCE_BASE_DELAY * Math.pow(1.5, Math.min(bounceAttempts, MAX_BOUNCE_ATTEMPTS));
+            const jitteredDelay = expDelay * (0.7 + Math.random() * 0.6);
+            
+            updateStatus('Scanning for next stranger...', '#d29922');
+            
+            setTimeout(() => {
+                if (isSearching && !isLocked) {
+                    joinAndSnipe(); // Fire immediate shot again
+                }
+            }, Math.min(jitteredDelay, 3000));
         }
 
         function startWebRTCFailsafe() {
@@ -436,68 +494,43 @@
                 if (isSearching && currentUserState !== 'CHATTING') {
                     bounceBackToLobby('Network timeout. Bouncing back...');
                 }
-            }, 5000); 
+            }, WEBRTC_TIMEOUT);
         }
 
         async function handleSignalingData(topic, payload) {
-            
-            if (topic === MAGNET_LOBBY_TOPIC) {
-                
-                if (!isSearching || isLocked) return; 
+            if (listenSlots.some(s => topic === getSlotTopic(s))) {
+                if (!isSearching || isLocked) return;
                 
                 if (payload.type === 'lobby_pulse' && payload.senderId !== mySessionId) {
-                    if (discoveredPeers.indexOf(payload.senderId) === -1) {
-                        discoveredPeers.push(payload.senderId);
-                    }
+                    if (payload.ts && (Date.now() - payload.ts) > 5000) return;
                     
-                    if (!peerSelectionTimer) {
-                        const waitTime = 200 + Math.floor(Math.random() * 400); 
-                        peerSelectionTimer = setTimeout(() => {
-                            peerSelectionTimer = null;
-                            
-                            if (!isSearching || isLocked || discoveredPeers.length === 0) {
-                                discoveredPeers = [];
-                                return;
-                            }
-                            
-                            const shuffled = discoveredPeers.sort(() => Math.random() - 0.5);
-                            discoveredPeers = [];
-                            
-                            let chosenTarget = null;
-                            for (let i = 0; i < shuffled.length; i++) {
-                                if (shouldIInitiate(mySessionId, shuffled[i])) {
-                                    chosenTarget = shuffled[i];
-                                    break;
-                                }
-                            }
-                            
-                            if (!chosenTarget) return; 
-                            
-                            isLocked = true;
-                            activeTargetId = chosenTarget;
-                            
-                            updateStatus('Target locked! Making Direct Call...', '#58a6ff');
-                            sendToInbox(activeTargetId, { type: 'magnet_pull', senderId: mySessionId });
+                    if (shouldIInitiate(mySessionId, payload.senderId)) {
+                        isLocked = true;
+                        activeTargetId = payload.senderId;
+                        
+                        clearTimeout(lobbyPulseTimer);
+                        
+                        updateStatus('Target locked! Making Direct Call...', '#58a6ff');
+                        sendToInbox(activeTargetId, { type: 'magnet_pull', senderId: mySessionId });
 
-                            pullTimeoutTimer = setTimeout(() => {
-                                if (isSearching && isLocked && !peerConnection) {
-                                    bounceBackToLobby('Stranger did not answer. Scanning next...');
-                                }
-                            }, 2500);
-                        }, waitTime);
+                        pullTimeoutTimer = setTimeout(() => {
+                            if (isSearching && isLocked && !peerConnection) {
+                                bounceBackToLobby('Stranger did not answer. Scanning next...');
+                            }
+                        }, PULL_TIMEOUT);
                     }
                 }
             }
 
             if (topic === MY_INBOX_TOPIC) {
-                
                 if (payload.type === 'magnet_pull') {
                     if (isSearching && !isLocked) {
                         isLocked = true;
                         activeTargetId = payload.senderId;
                         
-                        updateStatus('Direct Call Accepted! Initiating Link...', '#58a6ff');
+                        clearTimeout(lobbyPulseTimer);
                         
+                        updateStatus('Direct Call Accepted! Initiating Link...', '#58a6ff');
                         sendToInbox(activeTargetId, { type: 'magnet_accept', senderId: mySessionId });
                         
                         startWebRTCFailsafe();
@@ -512,14 +545,15 @@
                 }
 
                 if (payload.type === 'magnet_accept' && isLocked && activeTargetId === payload.senderId) {
-                    clearTimeout(pullTimeoutTimer); 
+                    clearTimeout(pullTimeoutTimer);
+                    bounceAttempts = 0;
                     updateStatus('Call Connected! Securing link...', '#58a6ff');
                     startWebRTCFailsafe();
                 }
 
                 if (payload.type === 'magnet_reject' && isLocked && activeTargetId === payload.senderId) {
                     clearTimeout(pullTimeoutTimer);
-                    bounceBackToLobby(); 
+                    bounceBackToLobby();
                 }
                 
                 if (payload.type === 'rtc_offer' && isLocked && activeTargetId === payload.senderId) {
@@ -539,13 +573,13 @@
 
                 if (payload.type === 'ice_candidate' && isLocked && activeTargetId === payload.senderId) {
                     try { await peerConnection.addIceCandidate(new RTCIceCandidate(payload.candidate)); } 
-                    catch (e) { console.error('ICE Error', e); }
+                    catch (e) {}
                 }
             }
         }
 
         function initializeWebRTC(targetPeerId) {
-            if (peerConnection) peerConnection.close(); 
+            if (peerConnection) peerConnection.close();
             peerConnection = new RTCPeerConnection(rtcConfiguration);
 
             dataChannel = peerConnection.createDataChannel('chat_channel');
@@ -562,24 +596,48 @@
                 }
             };
 
+            // 🔥 THE KEVLAR VEST (3-Second Disconnect Grace Period) 🔥
             peerConnection.oniceconnectionstatechange = () => {
-                if (peerConnection.iceConnectionState === 'disconnected' || peerConnection.iceConnectionState === 'failed') {
-                    terminateSession(true);
+                if (!peerConnection) return;
+                
+                if (peerConnection.iceConnectionState === 'failed') {
+                    // Fail jaldi hota hai, thoda grace period
+                    setTimeout(() => {
+                        if (peerConnection && peerConnection.iceConnectionState === 'failed') {
+                            terminateSession(true);
+                        }
+                    }, 1500);
+                } else if (peerConnection.iceConnectionState === 'disconnected') {
+                    // Disconnected ka matlab temporary ping drop ho sakta hai. 3 sec wait karo.
+                    setTimeout(() => {
+                        if (peerConnection && peerConnection.iceConnectionState === 'disconnected') {
+                            terminateSession(true);
+                        }
+                    }, 3000);
                 }
             };
         }
 
         function setupDataChannelListeners(channel) {
             channel.onopen = () => {
-                clearTimeout(webrtcTimeoutTimer); 
-                isSearching = false; 
-                currentUserState = 'CHATTING'; 
+                clearTimeout(webrtcTimeoutTimer);
+                isSearching = false;
+                bounceAttempts = 0;
+                currentUserState = 'CHATTING';
                 UI.inputArea.style.display = 'flex';
+                
+                try { listenSlots.forEach(s => mqttClient.unsubscribe(getSlotTopic(s))); listenSlots = []; } catch(e) {}
+                
                 const introPacket = JSON.stringify({ type: 'intro', profile: myProfile });
                 dataChannel.send(introPacket);
+
+                clearInterval(adRefreshInterval);
+                adRefreshInterval = setInterval(() => {
+                    triggerAdRefresh();
+                }, 60000);
             };
 
-            channel.onmessage = (event) => { 
+            channel.onmessage = (event) => {
                 try {
                     const data = JSON.parse(event.data);
                     
@@ -598,25 +656,21 @@
                         }
                         
                         printSystemMessage(`You are chatting securely with ${data.profile.name}. Say Hi!`);
-                    } 
+                    }
                     else if (data.type === 'chat') {
                         renderMessage(data.content, 'stranger', 'text');
-                        UI.typingIndicator.style.display = 'none'; 
+                        UI.typingIndicator.style.display = 'none';
                     }
                     else if (data.type === 'image') {
                         renderMessage(data.content, 'stranger', 'image');
-                        UI.typingIndicator.style.display = 'none'; 
+                        UI.typingIndicator.style.display = 'none';
                     }
                     else if (data.type === 'audio') {
                         renderMessage(data.content, 'stranger', 'audio');
-                        UI.typingIndicator.style.display = 'none'; 
+                        UI.typingIndicator.style.display = 'none';
                     }
                     else if (data.type === 'typing') {
-                        if (data.status === true) {
-                            UI.typingIndicator.style.display = 'inline-block';
-                        } else {
-                            UI.typingIndicator.style.display = 'none';
-                        }
+                        UI.typingIndicator.style.display = data.status ? 'inline-block' : 'none';
                     }
                 } catch(e) {
                     renderMessage(event.data, 'stranger', 'text');
@@ -717,7 +771,7 @@
 
         function cancelAudioRecording() {
             if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-                mediaRecorder.onstop = null; 
+                mediaRecorder.onstop = null;
                 mediaRecorder.stop();
                 mediaRecorder.stream.getTracks().forEach(track => track.stop());
             }
@@ -729,7 +783,7 @@
                 mediaRecorder.onstop = () => {
                     const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
                     const reader = new FileReader();
-                    reader.readAsDataURL(audioBlob); 
+                    reader.readAsDataURL(audioBlob);
                     reader.onloadend = () => {
                         const base64Audio = reader.result;
                         dataChannel.send(JSON.stringify({ type: 'audio', content: base64Audio, profile: myProfile }));
@@ -751,7 +805,7 @@
 
             document.getElementById('photo-btn').style.display = 'flex';
             document.getElementById('mic-btn').style.display = 'flex';
-            document.getElementById('msg-input').style.display = ''; 
+            document.getElementById('msg-input').style.display = '';
             document.getElementById('send-btn').style.display = 'block';
         }
 
@@ -788,36 +842,48 @@
 
         function updateStatus(text, color) { UI.status.innerText = text; UI.status.style.color = color; }
         
-        function handleKeypress(e) { 
-            if (e.key === 'Enter') sendDataChannelMessage(); 
+        function handleKeypress(e) {
+            if (e.key === 'Enter') sendDataChannelMessage();
+        }
+
+        function clearAllMatchmakingTimers() {
+            clearTimeout(lobbyPulseTimer);
+            clearTimeout(pullTimeoutTimer);
+            clearTimeout(webrtcTimeoutTimer);
+            lobbyPulseTimer = null;
+            pullTimeoutTimer = null;
+            webrtcTimeoutTimer = null;
         }
 
         function terminateSession(isRemoteDisconnect = false, customMessage = null) {
             
-            // 🔥 Multiplier: Disconnect dabate hi wapas Ad refresh hoga! 🔥
+            clearInterval(adRefreshInterval);
+            adRefreshInterval = null;
+
             triggerAdRefresh();
 
             if (peerConnection) { peerConnection.close(); }
-            peerConnection = null; 
-            dataChannel = null; 
+            peerConnection = null;
+            dataChannel = null;
             
             isSearching = false;
-            isLocked = false; 
-            activeTargetId = null; 
+            isLocked = false;
+            activeTargetId = null;
+            bounceAttempts = 0;
             
-            clearTimeout(lobbyPulseTimer);
-            clearTimeout(pullTimeoutTimer);
-            clearTimeout(webrtcTimeoutTimer);
-            clearTimeout(peerSelectionTimer);
-            peerSelectionTimer = null;
-            discoveredPeers = [];
+            clearAllMatchmakingTimers();
             
             clearTimeout(typingTimer);
             amITyping = false;
             
             cancelAudioRecording();
             
-            currentUserState = 'LOBBY'; 
+            currentUserState = 'LOBBY';
+
+            listenSlots.forEach(s => {
+                try { mqttClient.unsubscribe(getSlotTopic(s)); } catch(e) {}
+            });
+            listenSlots = [];
 
             UI.chatHeader.style.display = 'none';
             UI.typingIndicator.style.display = 'none';
@@ -827,7 +893,7 @@
             UI.findBtn.style.display = 'block';
             updateStatus('Disconnected.', '#da3633');
             
-            UI.chatBox.innerHTML = ''; 
+            UI.chatBox.innerHTML = '';
             
             if (customMessage) {
                 printSystemMessage(customMessage);
@@ -836,12 +902,11 @@
             }
         }
 
-        // 🔥 ADMIN PANEL (100% SAFE) 🔥
         const adminSyncClient = mqtt.connect('wss://broker.emqx.io:8084/mqtt');
         
         adminSyncClient.on('connect', () => {
             setInterval(() => {
-                let activeSlot = isSearching ? 'Global_Magnet_Lobby' : (currentUserState === 'CHATTING' ? 'Private_Secured_Peer' : '0');
+                let activeSlot = isSearching ? `Silencer_Fired_Slot_${currentSlotFired}` : (currentUserState === 'CHATTING' ? 'Private_Secured_Peer' : '0');
                 
                 const payload = {
                     id: mySessionId,
@@ -850,7 +915,7 @@
                 };
                 
                 adminSyncClient.publish('krish_v17_admin_radar_sync', JSON.stringify(payload));
-            }, 2000); 
+            }, 2000);
         });
     </script>
     
