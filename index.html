@@ -105,14 +105,14 @@
         .tnc-content { background: #0d1117; padding: 18px; border-radius: 12px; border: 1px solid #30363d; color: #8b949e; font-size: 13px; line-height: 1.6; max-height: 280px; overflow-y: auto; margin-bottom: 25px;}
         .tnc-content h4 { color: #58a6ff; margin-top: 12px; margin-bottom: 6px; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px;}
         .tnc-content h4.warning { color: #ff8182; }
-        
+
         .modal-buttons { display: flex; gap: 15px; }
         .btn-cancel { flex: 1; padding: 14px; border-radius: 12px; background: #21262d; color: white; border: 1px solid #30363d; font-weight: bold; font-size: 15px; cursor: pointer; transition: 0.2s;}
         .btn-cancel:active { background: #30363d; }
         .btn-leave { flex: 1; padding: 14px; border-radius: 12px; background: #da3633; color: white; border: none; font-weight: bold; font-size: 15px; cursor: pointer; transition: 0.2s; box-shadow: 0 4px 12px rgba(218, 54, 51, 0.3);}
         .btn-leave:active { background: #f85149; }
         .btn-full { width: 100%; background: linear-gradient(135deg, #388bfd 0%, #1f6feb 100%); border: none; color: white; padding: 16px; border-radius: 12px; font-weight: bold; cursor: pointer; font-size: 16px; letter-spacing: 1px;}
-        
+
         @keyframes popIn { from { transform: scale(0.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
     </style>
 </head>
@@ -230,14 +230,13 @@
 
     <script>
         /* ═══════════════════════════════════════════════════════════════════
-         * v4.0 "THE SILENCED SNIPER" MATCHMAKING ENGINE
+         * v5.1 "TRIPLE SNIPER" + DE-DUPLICATOR SHIELD
          * ─────────────────────────────────────────────────────────────────
          * STRATEGY:
-         * - 10 Slots Kept for 2000+ users scalability.
-         * - Everyone listens to all 10 slots continuously (0 server load).
-         * - When searching, pulse is fired ONCE immediately, then very slowly
-         * (every 1.5 seconds) on 1 single slot to bypass EMQX Guard.
-         * - WebRTC Shield added to prevent instant disconnects.
+         * - 3 FREE permanent public MQTT brokers simultaneously (HiveMQ + EMQX + Mosquitto)
+         * - NO SLOT SYSTEM — Global lobby channel, unlimited users, zero collision
+         * - Pulse: 150ms (10x faster than before, load distributed across 3 brokers)
+         * - De-Duplicator: Blocks "Echo" crashes caused by receiving same signal 3 times.
          * ═══════════════════════════════════════════════════════════════════ */
 
         const UI = {
@@ -303,7 +302,7 @@
             UI.actionArea.style.display = 'flex';
             
             currentUserState = 'LOBBY';
-            connectSignalingServer();
+            connectSignalingServers();
             
             triggerAdRefresh();
         }
@@ -317,25 +316,61 @@
 
         let mySessionId = 'peer_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
         const MY_INBOX_TOPIC = `krish_v17_inbox_${mySessionId}`;
+        const GLOBAL_LOBBY_TOPIC = 'krish_v17_global_lobby_v5';
 
-        // 🔥 THE SILENCER CONFIGURATION 🔥
-        const NUM_LOBBY_SLOTS = 10;
-        const PULSE_BASE_INTERVAL = 1500; // Slow pulse to bypass guard (1.5s)
-        const PULSE_JITTER = 200;
-        
-        const PULL_TIMEOUT = 4000; 
-        const WEBRTC_TIMEOUT = 10000;
-        const BOUNCE_BASE_DELAY = 40;
+        const PULSE_INTERVAL    = 150;   
+        const PULL_TIMEOUT      = 1200;  
+        const WEBRTC_TIMEOUT    = 5000;  
+        const BOUNCE_BASE_DELAY = 20;    
+        const MAX_BOUNCE_DELAY  = 800;   
         const MAX_BOUNCE_ATTEMPTS = 8;
+        const PULSE_STALE_LIMIT = 3000;  
 
-        let listenSlots = [];
-        let currentSlotFired = null;
+        const BROKER_CONFIGS = [
+            {
+                url: 'wss://broker.hivemq.com:8884/mqtt',
+                clientId: mySessionId + '_hive',
+                name: 'HiveMQ'
+            },
+            {
+                url: 'wss://broker.emqx.io:8084/mqtt',
+                clientId: mySessionId + '_emqx',
+                name: 'EMQX'
+            },
+            {
+                url: 'wss://test.mosquitto.org:8081/mqtt',
+                clientId: mySessionId + '_mosq',
+                name: 'Mosquitto'
+            }
+        ];
+
+        let brokerClients = [];        
+        let connectedBrokerCount = 0;
         let lobbyPulseTimer = null;
         let pullTimeoutTimer = null;
         let webrtcTimeoutTimer = null;
         let bounceAttempts = 0;
 
-        function getSlotTopic(slot) { return `krish_v17_magnet_slot_${slot}`; }
+        let peerConnection = null;
+        let dataChannel = null;
+        
+        let isSearching = false;
+        let isLocked = false;
+        let activeTargetId = null;
+
+        const rtcConfiguration = {
+            iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:stun1.l.google.com:19302' },
+                { urls: 'stun:stun2.l.google.com:19302' },
+                { urls: 'stun:stun.cloudflare.com:3478' },
+                { urls: 'stun:stun.relay.metered.ca:80' },
+                { urls: 'turn:openrelay.metered.ca:80',  username: 'openrelayproject', credential: 'openrelayproject' },
+                { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' }
+            ],
+            iceCandidatePoolSize: 4,    
+            bundlePolicy: 'max-bundle'  
+        };
 
         function pairHash(idA, idB) {
             const combined = idA < idB ? idA + '|' + idB : idB + '|' + idA;
@@ -353,54 +388,83 @@
             return (bit0 ^ lexOrder) === 1;
         }
 
-        let mqttClient = null;
-        let peerConnection = null;
-        let dataChannel = null;
-        
-        let isSearching = false;
-        let isLocked = false;
-        let activeTargetId = null;
+        function connectSignalingServers() {
+            updateStatus('Connecting to global network...', '#8b949e');
+            connectedBrokerCount = 0;
+            brokerClients = [];
 
-        const rtcConfiguration = {
-            iceServers: [
-                { urls: 'stun:stun.l.google.com:19302' },
-                { urls: 'stun:stun.cloudflare.com:3478' },
-                { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
-                { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' }
-            ]
-        };
+            BROKER_CONFIGS.forEach(cfg => {
+                const brokerState = { client: null, name: cfg.name, connected: false };
+                brokerClients.push(brokerState);
 
-        function connectSignalingServer() {
-            updateStatus('Connecting to network...', '#8b949e');
-            
-            mqttClient = mqtt.connect('wss://broker.emqx.io:8084/mqtt', {
-                clientId: mySessionId,
-                clean: true,
-                connectTimeout: 10000,
-                reconnectPeriod: 3000,
-                keepalive: 30
-            });
-
-            mqttClient.on('connect', () => {
-                updateStatus(`Welcome, ${myProfile.name}. Ready to connect.`, '#3fb950');
-                mqttClient.subscribe(MY_INBOX_TOPIC, { qos: 0 });
-            });
-
-            mqttClient.on('message', (topic, message) => {
                 try {
-                    const payload = JSON.parse(message.toString());
-                    handleSignalingData(topic, payload);
+                    const client = mqtt.connect(cfg.url, {
+                        clientId: cfg.clientId,
+                        clean: true,
+                        connectTimeout: 8000,
+                        reconnectPeriod: 5000,
+                        keepalive: 30
+                    });
+                    brokerState.client = client;
+
+                    client.on('connect', () => {
+                        brokerState.connected = true;
+                        connectedBrokerCount++;
+
+                        client.subscribe(MY_INBOX_TOPIC, { qos: 0 });
+
+                        if (connectedBrokerCount === 1) {
+                            updateStatus(`Welcome, ${myProfile.name}. Ready to connect.`, '#3fb950');
+                        }
+                    });
+
+                    client.on('message', (topic, message) => {
+                        try {
+                            const payload = JSON.parse(message.toString());
+                            handleSignalingData(topic, payload);
+                        } catch(e) {}
+                    });
+
+                    client.on('error', () => {
+                        brokerState.connected = false;
+                        connectedBrokerCount = Math.max(0, connectedBrokerCount - 1);
+                    });
+
+                    client.on('offline', () => {
+                        brokerState.connected = false;
+                        connectedBrokerCount = Math.max(0, connectedBrokerCount - 1);
+                    });
+
+                    client.on('reconnect', () => {
+                        try {
+                            client.subscribe(MY_INBOX_TOPIC, { qos: 0 });
+                            if (isSearching) {
+                                client.subscribe(GLOBAL_LOBBY_TOPIC, { qos: 0 });
+                            }
+                        } catch(e) {}
+                    });
+
                 } catch(e) {}
-            });
-            
-            mqttClient.on('error', () => {
-                updateStatus('Network Error. Reconnecting...', '#da3633');
             });
         }
 
+        function publishToAll(topic, payload) {
+            const msg = typeof payload === 'string' ? payload : JSON.stringify(payload);
+            brokerClients.forEach(b => {
+                if (b.connected && b.client) {
+                    try { b.client.publish(topic, msg, { qos: 0 }); } catch(e) {}
+                }
+            });
+        }
+
+        function sendToInbox(targetId, payloadObj) {
+            publishToAll(`krish_v17_inbox_${targetId}`, payloadObj);
+        }
+
         function initiateMatchmaking() {
-            if (!mqttClient || !mqttClient.connected) {
-                alert("Server is still connecting. Please wait a second.");
+            const anyConnected = brokerClients.some(b => b.connected);
+            if (!anyConnected) {
+                alert("Network is connecting. Please wait a second.");
                 return;
             }
 
@@ -417,49 +481,33 @@
             UI.findBtn.style.display = 'none';
             UI.chatBox.innerHTML = '';
             
-            updateStatus('Activating Magnet... Scanning Lobby...', '#d29922');
-            printSystemMessage('Magnet Engine Active. Searching for strangers...');
+            updateStatus('⚡ Activating Global Radar... Scanning...', '#d29922');
+            printSystemMessage('Triple-Broker Engine Active. Finding strangers...');
 
-            joinAndSnipe();
-        }
-
-        function joinAndSnipe() {
-            // Listen to ALL slots (Silent radar)
-            if (listenSlots.length === 0) {
-                for (let i = 0; i < NUM_LOBBY_SLOTS; i++) {
-                    mqttClient.subscribe(getSlotTopic(i), { qos: 0 });
+            brokerClients.forEach(b => {
+                if (b.connected && b.client) {
+                    try { b.client.subscribe(GLOBAL_LOBBY_TOPIC, { qos: 0 }); } catch(e) {}
                 }
-                listenSlots = Array.from({length: NUM_LOBBY_SLOTS}, (_, i) => i);
-            }
-            
-            // Fire the first bullet INSTANTLY (0.1s match)
-            fireSniperPulse();
+            });
+
+            firePulse();
         }
 
-        function fireSniperPulse() {
+        function firePulse() {
             if (!isSearching || isLocked) return;
             
-            // Pick exactly ONE slot to fire the bullet into
-            const r = Math.floor(Math.random() * NUM_LOBBY_SLOTS);
-            currentSlotFired = r;
-            
-            const pulse = JSON.stringify({
+            const pulse = {
                 type: 'lobby_pulse',
                 senderId: mySessionId,
                 ts: Date.now()
-            });
-            mqttClient.publish(getSlotTopic(r), pulse, { qos: 0 });
+            };
 
-            // Silencer: Wait 1.5 seconds before firing again to bypass Guard
+            publishToAll(GLOBAL_LOBBY_TOPIC, pulse);
+
             clearTimeout(lobbyPulseTimer);
-            const interval = PULSE_BASE_INTERVAL + Math.floor(Math.random() * PULSE_JITTER * 2);
             lobbyPulseTimer = setTimeout(() => {
-                if (isSearching && !isLocked) fireSniperPulse();
-            }, interval);
-        }
-
-        function sendToInbox(targetId, payloadObj) {
-            mqttClient.publish(`krish_v17_inbox_${targetId}`, JSON.stringify(payloadObj), { qos: 0 });
+                if (isSearching && !isLocked) firePulse();
+            }, PULSE_INTERVAL);
         }
 
         function bounceBackToLobby(reasonMessage) {
@@ -473,19 +521,18 @@
             
             isLocked = false;
             activeTargetId = null;
-            
             bounceAttempts++;
-            
+
             const expDelay = BOUNCE_BASE_DELAY * Math.pow(1.5, Math.min(bounceAttempts, MAX_BOUNCE_ATTEMPTS));
-            const jitteredDelay = expDelay * (0.7 + Math.random() * 0.6);
+            const jitteredDelay = Math.min(expDelay * (0.7 + Math.random() * 0.6), MAX_BOUNCE_DELAY);
             
-            updateStatus('Scanning for next stranger...', '#d29922');
+            updateStatus('⚡ Scanning for next stranger...', '#d29922');
             
             setTimeout(() => {
                 if (isSearching && !isLocked) {
-                    joinAndSnipe(); // Fire immediate shot again
+                    firePulse(); 
                 }
-            }, Math.min(jitteredDelay, 3000));
+            }, jitteredDelay);
         }
 
         function startWebRTCFailsafe() {
@@ -498,31 +545,33 @@
         }
 
         async function handleSignalingData(topic, payload) {
-            if (listenSlots.some(s => topic === getSlotTopic(s))) {
-                if (!isSearching || isLocked) return;
-                
-                if (payload.type === 'lobby_pulse' && payload.senderId !== mySessionId) {
-                    if (payload.ts && (Date.now() - payload.ts) > 5000) return;
-                    
-                    if (shouldIInitiate(mySessionId, payload.senderId)) {
-                        isLocked = true;
-                        activeTargetId = payload.senderId;
-                        
-                        clearTimeout(lobbyPulseTimer);
-                        
-                        updateStatus('Target locked! Making Direct Call...', '#58a6ff');
-                        sendToInbox(activeTargetId, { type: 'magnet_pull', senderId: mySessionId });
 
-                        pullTimeoutTimer = setTimeout(() => {
-                            if (isSearching && isLocked && !peerConnection) {
-                                bounceBackToLobby('Stranger did not answer. Scanning next...');
-                            }
-                        }, PULL_TIMEOUT);
-                    }
+            if (topic === GLOBAL_LOBBY_TOPIC) {
+                if (!isSearching || isLocked) return;
+                if (payload.type !== 'lobby_pulse') return;
+                if (payload.senderId === mySessionId) return;
+
+                if (payload.ts && (Date.now() - payload.ts) > PULSE_STALE_LIMIT) return;
+                
+                if (shouldIInitiate(mySessionId, payload.senderId)) {
+                    isLocked = true;
+                    activeTargetId = payload.senderId;
+                    
+                    clearTimeout(lobbyPulseTimer);
+                    
+                    updateStatus('🎯 Target locked! Making Direct Call...', '#58a6ff');
+                    sendToInbox(activeTargetId, { type: 'magnet_pull', senderId: mySessionId });
+
+                    pullTimeoutTimer = setTimeout(() => {
+                        if (isSearching && isLocked && !peerConnection) {
+                            bounceBackToLobby('Stranger did not answer. Scanning next...');
+                        }
+                    }, PULL_TIMEOUT);
                 }
             }
 
             if (topic === MY_INBOX_TOPIC) {
+
                 if (payload.type === 'magnet_pull') {
                     if (isSearching && !isLocked) {
                         isLocked = true;
@@ -530,7 +579,7 @@
                         
                         clearTimeout(lobbyPulseTimer);
                         
-                        updateStatus('Direct Call Accepted! Initiating Link...', '#58a6ff');
+                        updateStatus('📞 Direct Call! Initiating Link...', '#58a6ff');
                         sendToInbox(activeTargetId, { type: 'magnet_accept', senderId: mySessionId });
                         
                         startWebRTCFailsafe();
@@ -539,7 +588,11 @@
                         await peerConnection.setLocalDescription(offer);
                         sendToInbox(activeTargetId, { type: 'rtc_offer', offer: offer, senderId: mySessionId });
 
+                    } else if (isLocked && activeTargetId === payload.senderId) {
+                        // 🔥 FIX 1: THE DE-DUPLICATOR SHIELD (Ignore duplicate calls from the same person)
+                        return;
                     } else {
+                        // Reject calls from *other* people while we are busy
                         sendToInbox(payload.senderId, { type: 'magnet_reject', senderId: mySessionId });
                     }
                 }
@@ -547,7 +600,7 @@
                 if (payload.type === 'magnet_accept' && isLocked && activeTargetId === payload.senderId) {
                     clearTimeout(pullTimeoutTimer);
                     bounceAttempts = 0;
-                    updateStatus('Call Connected! Securing link...', '#58a6ff');
+                    updateStatus('🔗 Call Connected! Securing link...', '#58a6ff');
                     startWebRTCFailsafe();
                 }
 
@@ -557,8 +610,11 @@
                 }
                 
                 if (payload.type === 'rtc_offer' && isLocked && activeTargetId === payload.senderId) {
+                    // 🔥 FIX 2: IGNORE DUPLICATE OFFERS (Prevents WebRTC InvalidStateError Crash)
+                    if (peerConnection && peerConnection.remoteDescription && peerConnection.remoteDescription.type) return;
+
                     if (!peerConnection) { initializeWebRTC(payload.senderId); }
-                    updateStatus('Securing End-to-End Encryption...', '#58a6ff');
+                    updateStatus('🔐 Securing End-to-End Encryption...', '#58a6ff');
                     
                     await peerConnection.setRemoteDescription(new RTCSessionDescription(payload.offer));
                     const answer = await peerConnection.createAnswer();
@@ -568,6 +624,9 @@
                 }
 
                 if (payload.type === 'rtc_answer' && isLocked && activeTargetId === payload.senderId) {
+                    // 🔥 FIX 3: IGNORE DUPLICATE ANSWERS
+                    if (peerConnection && peerConnection.currentRemoteDescription) return;
+
                     await peerConnection.setRemoteDescription(new RTCSessionDescription(payload.answer));
                 }
 
@@ -596,19 +655,16 @@
                 }
             };
 
-            // 🔥 THE KEVLAR VEST (3-Second Disconnect Grace Period) 🔥
             peerConnection.oniceconnectionstatechange = () => {
                 if (!peerConnection) return;
                 
                 if (peerConnection.iceConnectionState === 'failed') {
-                    // Fail jaldi hota hai, thoda grace period
                     setTimeout(() => {
                         if (peerConnection && peerConnection.iceConnectionState === 'failed') {
                             terminateSession(true);
                         }
                     }, 1500);
                 } else if (peerConnection.iceConnectionState === 'disconnected') {
-                    // Disconnected ka matlab temporary ping drop ho sakta hai. 3 sec wait karo.
                     setTimeout(() => {
                         if (peerConnection && peerConnection.iceConnectionState === 'disconnected') {
                             terminateSession(true);
@@ -626,7 +682,11 @@
                 currentUserState = 'CHATTING';
                 UI.inputArea.style.display = 'flex';
                 
-                try { listenSlots.forEach(s => mqttClient.unsubscribe(getSlotTopic(s))); listenSlots = []; } catch(e) {}
+                brokerClients.forEach(b => {
+                    if (b.connected && b.client) {
+                        try { b.client.unsubscribe(GLOBAL_LOBBY_TOPIC); } catch(e) {}
+                    }
+                });
                 
                 const introPacket = JSON.stringify({ type: 'intro', profile: myProfile });
                 dataChannel.send(introPacket);
@@ -880,10 +940,9 @@
             
             currentUserState = 'LOBBY';
 
-            listenSlots.forEach(s => {
-                try { mqttClient.unsubscribe(getSlotTopic(s)); } catch(e) {}
+            brokerClients.forEach(b => {
+                try { if (b.connected && b.client) b.client.unsubscribe(GLOBAL_LOBBY_TOPIC); } catch(e) {}
             });
-            listenSlots = [];
 
             UI.chatHeader.style.display = 'none';
             UI.typingIndicator.style.display = 'none';
@@ -906,7 +965,7 @@
         
         adminSyncClient.on('connect', () => {
             setInterval(() => {
-                let activeSlot = isSearching ? `Silencer_Fired_Slot_${currentSlotFired}` : (currentUserState === 'CHATTING' ? 'Private_Secured_Peer' : '0');
+                let activeSlot = isSearching ? 'GlobalLobby_Scanning' : (currentUserState === 'CHATTING' ? 'Private_Secured_Peer' : '0');
                 
                 const payload = {
                     id: mySessionId,
