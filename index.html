@@ -21,103 +21,76 @@
     <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
 
     <style>
+        /* ... (styles exactly as in original, unchanged) ... */
         * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, sans-serif; margin: 0; }
-        
         body { background-color: #0d1117; color: #c9d1d9; display: flex; flex-direction: column; height: 100vh; height: 100dvh; overflow: hidden; }
-        
-        /* 🔥 SPACER FOR ADSTERRA ADS (140px HEIGHT) 🔥 */
         #ad-spacer { width: 100%; min-height: 140px; flex-shrink: 0; background: transparent; display: flex; justify-content: center; align-items: center; overflow: hidden;}
-
         #header { padding: 15px; background: rgba(22, 27, 34, 0.95); backdrop-filter: blur(5px); text-align: center; border-bottom: 1px solid #30363d; box-shadow: 0 4px 15px rgba(0,0,0,0.4); z-index: 10; min-height: 70px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: all 0.3s ease;}
-        
         #default-header { width: 100%; }
         #default-header h2 { color: #58a6ff; font-size: 22px; text-transform: uppercase; letter-spacing: 2px; font-weight: 800; text-shadow: 0 0 10px rgba(88,166,255,0.3); margin-bottom: 2px;}
         #status-bar { font-size: 13px; color: #8b949e; margin-top: 5px; font-weight: bold; letter-spacing: 0.5px;}
-        
         #chat-header { display: none; width: 100%; align-items: center; justify-content: flex-start; gap: 12px; padding: 0 10px; }
         .avatar-circle { width: 42px; height: 42px; background: linear-gradient(135deg, #30363d 0%, #161b22 100%); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.4); border: 1px solid #484f58;}
         .stranger-info-box { text-align: left; display: flex; flex-direction: column; }
         #top-stranger-name { font-size: 16px; font-weight: bold; color: white; letter-spacing: 0.5px;}
-        
         .badge-container { display: flex; align-items: center; gap: 8px; margin-top: 3px; }
         #top-stranger-gender { font-size: 10px; font-weight: bold; padding: 3px 8px; border-radius: 12px; display: inline-block; text-transform: uppercase; letter-spacing: 0.5px;}
         .gender-male { background: #1f6feb; color: white; box-shadow: 0 0 8px rgba(31, 111, 235, 0.4);}
         .gender-female { background: #FF1493; color: white; box-shadow: 0 0 8px rgba(255, 20, 147, 0.4);}
         .gender-other { background: #8250df; color: white; box-shadow: 0 0 8px rgba(130, 80, 223, 0.4);}
-        
         #typing-indicator { font-size: 12px; color: #3fb950; font-weight: bold; display: none; font-style: italic; animation: pulse 1.5s infinite; }
         @keyframes pulse { 0% { opacity: 0.5; } 50% { opacity: 1; } 100% { opacity: 0.5; } }
-        
         #setup-container { flex: 1; display: flex; flex-direction: column; align-items: center; padding: 20px; background: radial-gradient(circle at center, #161b22 0%, #0d1117 100%); overflow-y: auto; }
-        
         .setup-box { width: 100%; max-width: 420px; background: rgba(22, 27, 34, 0.6); backdrop-filter: blur(12px); padding: 35px 25px; border-radius: 24px; border: 1px solid rgba(255,255,255,0.08); box-shadow: 0 25px 50px rgba(0,0,0,0.5), inset 0 0 0 1px rgba(255,255,255,0.02); margin-top: 1vh; flex-shrink: 0;}
         .setup-box h3 { color: white; text-align: center; margin-bottom: 30px; font-size: 22px; letter-spacing: 1px; font-weight: 700;}
         .input-group { margin-bottom: 22px; }
         .input-group label { display: block; color: #8b949e; margin-bottom: 8px; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; font-weight: 700;}
-        
         .profile-input { width: 100%; padding: 15px; border-radius: 12px; border: 1px solid #30363d; background: #0d1117; color: white; outline: none; font-size: 15px; transition: all 0.3s ease; box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);}
         .profile-input:focus { border-color: #58a6ff; box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.2), inset 0 2px 4px rgba(0,0,0,0.2); }
-        
         .terms-group { display: flex; align-items: flex-start; gap: 12px; margin-top: 10px; margin-bottom: 25px; background: rgba(0,0,0,0.2); padding: 12px; border-radius: 10px;}
         .terms-group input[type="checkbox"] { width: 20px; height: 20px; margin-top: 1px; accent-color: #58a6ff; cursor: pointer;}
         .terms-group label { color: #8b949e; font-size: 12px; line-height: 1.5; text-transform: none; letter-spacing: normal; font-weight: normal;}
         .terms-link { color: #58a6ff; text-decoration: underline; cursor: pointer; font-weight: bold;}
-        
         #save-profile-btn { width: 100%; padding: 16px; border-radius: 12px; background: linear-gradient(135deg, #2ea043 0%, #238636 100%); color: white; border: none; font-weight: 800; font-size: 16px; transition: all 0.2s ease; cursor: pointer; text-transform: uppercase; letter-spacing: 2px; box-shadow: 0 8px 20px rgba(35, 134, 54, 0.3);}
         #save-profile-btn:active { background: #2ea043; transform: scale(0.97); box-shadow: 0 4px 10px rgba(35, 134, 54, 0.4);}
-        
         .seo-article { width: 100%; max-width: 700px; margin-top: 40px; margin-bottom: 20px; padding: 20px; color: #8b949e; flex-shrink: 0; text-align: left;}
         .seo-article h1, .seo-article h2 { color: #c9d1d9; font-size: 18px; margin-bottom: 12px; font-weight: bold;}
         .seo-article h3 { color: #c9d1d9; font-size: 15px; margin-top: 20px; margin-bottom: 8px;}
         .seo-article p { font-size: 13px; line-height: 1.6; margin-bottom: 15px;}
         .seo-article strong { color: #58a6ff; font-weight: normal;}
-
         #chat-window { flex: 1; overflow-y: auto; padding: 20px 15px; display: none; flex-direction: column; gap: 12px; scroll-behavior: smooth;}
         .message { padding: 12px 16px; border-radius: 18px; max-width: 85%; font-size: 15px; word-wrap: break-word; box-shadow: 0 2px 5px rgba(0,0,0,0.15); position: relative; line-height: 1.4;}
         .my-message { background: #238636; color: white; align-self: flex-end; border-bottom-right-radius: 4px; }
         .stranger-message { background: #21262d; color: #c9d1d9; border: 1px solid #30363d; align-self: flex-start; border-bottom-left-radius: 4px; }
-        
         .chat-img { max-width: 100%; border-radius: 12px; margin-top: 5px; display: block; }
         .chat-audio { max-width: 220px; height: 40px; margin-top: 5px; outline: none; border-radius: 20px; }
-        
         .system-message { text-align: center; color: #8b949e; font-size: 12px; margin: 15px 0; font-style: italic; background: rgba(33, 38, 45, 0.8); padding: 8px 15px; border-radius: 12px; align-self: center; width: fit-content; border: 1px solid #30363d;}
-
         #action-area { padding: 12px; background: #161b22; border-top: 1px solid #30363d; display: none; flex-shrink: 0; padding-bottom: max(12px, env(safe-area-inset-bottom)); }
         #find-btn { width: 100%; padding: 16px; border-radius: 12px; background: linear-gradient(135deg, #388bfd 0%, #1f6feb 100%); color: white; border: none; font-weight: 800; font-size: 16px; transition: 0.2s; text-transform: uppercase; cursor: pointer; letter-spacing: 1.5px; box-shadow: 0 8px 20px rgba(31, 111, 235, 0.3);}
         #find-btn:active { transform: scale(0.97); box-shadow: 0 4px 10px rgba(31, 111, 235, 0.4);}
-        
         #input-container { display: none; gap: 8px; align-items: center; width: 100%; }
-        
         .media-btn { background: #21262d; color: white; border: 1px solid #30363d; border-radius: 50%; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; cursor: pointer; transition: 0.2s; box-shadow: 0 2px 6px rgba(0,0,0,0.2);}
         .media-btn:active { background: #30363d; transform: scale(0.95); }
         .mic-recording { background: #da3633 !important; border-color: #da3633 !important; animation: pulse 1s infinite; }
-        
         #msg-input { flex: 1; padding: 14px 18px; border-radius: 24px; border: 1px solid #30363d; background: #0d1117; color: white; outline: none; font-size: 15px; transition: border 0.2s; min-width: 0; box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);}
         #msg-input:focus { border-color: #8b949e; }
-        
         #send-btn { padding: 12px 20px; border-radius: 24px; background: #238636; color: white; border: none; font-weight: bold; cursor: pointer; flex-shrink: 0; font-size: 14px;}
         #send-btn:active { background: #2ea043; }
-        
         #disconnect-btn { padding: 0; border-radius: 50%; background: #da3633; color: white; border: none; font-weight: bold; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; cursor: pointer; box-shadow: 0 2px 6px rgba(218, 54, 51, 0.3);}
         #disconnect-btn:active { background: #f85149; transform: scale(0.95);}
-
         #recording-timer-display { flex: 1; text-align: center; color: #da3633; font-weight: bold; font-family: monospace; font-size: 16px; letter-spacing: 1px; animation: pulse 1s infinite; }
-
         .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.85); backdrop-filter: blur(6px); z-index: 100; display: none; align-items: center; justify-content: center; }
         .modal-box { background: #161b22; width: 90%; max-width: 420px; border-radius: 20px; padding: 30px; border: 1px solid #30363d; box-shadow: 0 25px 50px rgba(0,0,0,0.6); animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); display: flex; flex-direction: column;}
         .modal-box h3 { color: white; font-size: 20px; margin-bottom: 15px; text-align: center; font-weight: 800;}
-        
         .tnc-content { background: #0d1117; padding: 18px; border-radius: 12px; border: 1px solid #30363d; color: #8b949e; font-size: 13px; line-height: 1.6; max-height: 280px; overflow-y: auto; margin-bottom: 25px;}
         .tnc-content h4 { color: #58a6ff; margin-top: 12px; margin-bottom: 6px; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px;}
         .tnc-content h4.warning { color: #ff8182; }
-
         .modal-buttons { display: flex; gap: 15px; }
         .btn-cancel { flex: 1; padding: 14px; border-radius: 12px; background: #21262d; color: white; border: 1px solid #30363d; font-weight: bold; font-size: 15px; cursor: pointer; transition: 0.2s;}
         .btn-cancel:active { background: #30363d; }
         .btn-leave { flex: 1; padding: 14px; border-radius: 12px; background: #da3633; color: white; border: none; font-weight: bold; font-size: 15px; cursor: pointer; transition: 0.2s; box-shadow: 0 4px 12px rgba(218, 54, 51, 0.3);}
         .btn-leave:active { background: #f85149; }
         .btn-full { width: 100%; background: linear-gradient(135deg, #388bfd 0%, #1f6feb 100%); border: none; color: white; padding: 16px; border-radius: 12px; font-weight: bold; cursor: pointer; font-size: 16px; letter-spacing: 1px;}
-
         @keyframes popIn { from { transform: scale(0.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
     </style>
 </head>
@@ -238,14 +211,13 @@
 
     <script>
         /* ═══════════════════════════════════════════════════════════════════
-         * v5.1 "TRIPLE SNIPER" + DE-DUPLICATOR SHIELD + NATIVE ADS
+         * v5.2 "STABLE CONNECTION FIX" – Resolved ICE timer race & duplicate races
          * ─────────────────────────────────────────────────────────────────
-         * STRATEGY:
-         * - 3 FREE permanent public MQTT brokers simultaneously (HiveMQ + EMQX + Mosquitto)
-         * - NO SLOT SYSTEM — Global lobby channel, unlimited users, zero collision
-         * - Pulse: 150ms (10x faster than before, load distributed across 3 brokers)
-         * - De-Duplicator: Blocks "Echo" crashes caused by receiving same signal 3 times.
-         * - Ads: Native Banner Refresh Logic (10s Anti-Ban Shield)
+         * FIXES:
+         * - Store ICE disconnect/failed timeouts and clear on connected
+         * - Atomic lock for setRemoteDescription to prevent duplicate corruption
+         * - Increased PULL_TIMEOUT to 2000ms for slower networks
+         * - All original features, ads, SEO unchanged
          * ═══════════════════════════════════════════════════════════════════ */
 
         const UI = {
@@ -269,25 +241,20 @@
             micBtn: document.getElementById('mic-btn')
         };
 
-        // 🔥 THE AD MULTIPLIER TRICK (10s Anti-Ban Shield Active) 🔥
+        // 🔥 AD REFRESH (unchanged)
         let lastAdRefreshTime = 0;
         function triggerAdRefresh() {
             const now = Date.now();
             if (now - lastAdRefreshTime < 10000) return;
             lastAdRefreshTime = now;
             
-            // 🔥 NEW NATIVE BANNER REFRESH LOGIC 🔥
             try {
                 const spacer = document.getElementById('ad-spacer');
-                if(spacer) {
-                    spacer.innerHTML = ''; // Clear old ad
-                    
-                    // Re-inject the Container
+                if (spacer) {
+                    spacer.innerHTML = '';
                     const newDiv = document.createElement('div');
                     newDiv.id = 'container-f0e4e82ffb718c35b87644553bcf64f1';
                     spacer.appendChild(newDiv);
-
-                    // Re-inject the Script
                     const newScript = document.createElement('script');
                     newScript.async = true;
                     newScript.setAttribute('data-cfasync', 'false');
@@ -338,33 +305,24 @@
         const MY_INBOX_TOPIC = `krish_v17_inbox_${mySessionId}`;
         const GLOBAL_LOBBY_TOPIC = 'krish_v17_global_lobby_v5';
 
-        const PULSE_INTERVAL    = 150;   
-        const PULL_TIMEOUT      = 1200;  
-        const WEBRTC_TIMEOUT    = 5000;  
-        const BOUNCE_BASE_DELAY = 20;    
-        const MAX_BOUNCE_DELAY  = 800;   
+        // ═══════════════════════════════════════════════════════════════════
+        // 🚀 TRIPLE-BROKER CONFIGURATION (unchanged)
+        // ═══════════════════════════════════════════════════════════════════
+        const PULSE_INTERVAL    = 150;   // 150ms
+        const PULL_TIMEOUT      = 2000;  // 🔧 INCREASED TO 2000ms (was 1200)
+        const WEBRTC_TIMEOUT    = 5000;  // 5000ms
+        const BOUNCE_BASE_DELAY = 20;    // 20ms
+        const MAX_BOUNCE_DELAY  = 800;   // 800ms cap
         const MAX_BOUNCE_ATTEMPTS = 8;
-        const PULSE_STALE_LIMIT = 3000;  
+        const PULSE_STALE_LIMIT = 3000;  // Ignore pulses older than 3 seconds
 
         const BROKER_CONFIGS = [
-            {
-                url: 'wss://broker.hivemq.com:8884/mqtt',
-                clientId: mySessionId + '_hive',
-                name: 'HiveMQ'
-            },
-            {
-                url: 'wss://broker.emqx.io:8084/mqtt',
-                clientId: mySessionId + '_emqx',
-                name: 'EMQX'
-            },
-            {
-                url: 'wss://test.mosquitto.org:8081/mqtt',
-                clientId: mySessionId + '_mosq',
-                name: 'Mosquitto'
-            }
+            { url: 'wss://broker.hivemq.com:8884/mqtt', clientId: mySessionId + '_hive', name: 'HiveMQ' },
+            { url: 'wss://broker.emqx.io:8084/mqtt', clientId: mySessionId + '_emqx', name: 'EMQX' },
+            { url: 'wss://test.mosquitto.org:8081/mqtt', clientId: mySessionId + '_mosq', name: 'Mosquitto' }
         ];
 
-        let brokerClients = [];        
+        let brokerClients = [];
         let connectedBrokerCount = 0;
         let lobbyPulseTimer = null;
         let pullTimeoutTimer = null;
@@ -378,6 +336,16 @@
         let isLocked = false;
         let activeTargetId = null;
 
+        // 🔧 NEW: Atomic lock for remote description operations
+        let isSettingRemote = false;
+
+        // 🔧 NEW: Store ICE state timeouts so they can be cancelled
+        let iceDisconnectTimeout = null;
+        let iceFailedTimeout = null;
+
+        // ═══════════════════════════════════════════════════════════════════
+        // WEBRTC CONFIG (unchanged)
+        // ═══════════════════════════════════════════════════════════════════
         const rtcConfiguration = {
             iceServers: [
                 { urls: 'stun:stun.l.google.com:19302' },
@@ -388,8 +356,8 @@
                 { urls: 'turn:openrelay.metered.ca:80',  username: 'openrelayproject', credential: 'openrelayproject' },
                 { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' }
             ],
-            iceCandidatePoolSize: 4,    
-            bundlePolicy: 'max-bundle'  
+            iceCandidatePoolSize: 4,
+            bundlePolicy: 'max-bundle'
         };
 
         function pairHash(idA, idB) {
@@ -430,9 +398,7 @@
                     client.on('connect', () => {
                         brokerState.connected = true;
                         connectedBrokerCount++;
-
                         client.subscribe(MY_INBOX_TOPIC, { qos: 0 });
-
                         if (connectedBrokerCount === 1) {
                             updateStatus(`Welcome, ${myProfile.name}. Ready to connect.`, '#3fb950');
                         }
@@ -550,7 +516,7 @@
             
             setTimeout(() => {
                 if (isSearching && !isLocked) {
-                    firePulse(); 
+                    firePulse();
                 }
             }, jitteredDelay);
         }
@@ -564,13 +530,15 @@
             }, WEBRTC_TIMEOUT);
         }
 
+        // ═══════════════════════════════════════════════════════════════════
+        // 📨 SIGNALING DATA HANDLER – with atomic locks and de‑duplication
+        // ═══════════════════════════════════════════════════════════════════
         async function handleSignalingData(topic, payload) {
 
             if (topic === GLOBAL_LOBBY_TOPIC) {
                 if (!isSearching || isLocked) return;
                 if (payload.type !== 'lobby_pulse') return;
                 if (payload.senderId === mySessionId) return;
-
                 if (payload.ts && (Date.now() - payload.ts) > PULSE_STALE_LIMIT) return;
                 
                 if (shouldIInitiate(mySessionId, payload.senderId)) {
@@ -609,6 +577,7 @@
                         sendToInbox(activeTargetId, { type: 'rtc_offer', offer: offer, senderId: mySessionId });
 
                     } else if (isLocked && activeTargetId === payload.senderId) {
+                        // Duplicate pull – ignore
                         return;
                     } else {
                         sendToInbox(payload.senderId, { type: 'magnet_reject', senderId: mySessionId });
@@ -628,27 +597,50 @@
                 }
                 
                 if (payload.type === 'rtc_offer' && isLocked && activeTargetId === payload.senderId) {
-                    if (peerConnection && peerConnection.remoteDescription && peerConnection.remoteDescription.type) return;
-
-                    if (!peerConnection) { initializeWebRTC(payload.senderId); }
-                    updateStatus('🔐 Securing End-to-End Encryption...', '#58a6ff');
-                    
-                    await peerConnection.setRemoteDescription(new RTCSessionDescription(payload.offer));
-                    const answer = await peerConnection.createAnswer();
-                    await peerConnection.setLocalDescription(answer);
-                    
-                    sendToInbox(activeTargetId, { type: 'rtc_answer', answer: answer, senderId: mySessionId });
+                    // 🔧 ATOMIC LOCK: Prevent concurrent setRemoteDescription from duplicate offers
+                    if (isSettingRemote) return;
+                    isSettingRemote = true;
+                    try {
+                        if (peerConnection && peerConnection.remoteDescription && peerConnection.remoteDescription.type) {
+                            return; // already set
+                        }
+                        if (!peerConnection) { initializeWebRTC(payload.senderId); }
+                        updateStatus('🔐 Securing End-to-End Encryption...', '#58a6ff');
+                        
+                        await peerConnection.setRemoteDescription(new RTCSessionDescription(payload.offer));
+                        const answer = await peerConnection.createAnswer();
+                        await peerConnection.setLocalDescription(answer);
+                        
+                        sendToInbox(activeTargetId, { type: 'rtc_answer', answer: answer, senderId: mySessionId });
+                    } catch (e) {
+                        console.warn('Error handling offer', e);
+                    } finally {
+                        isSettingRemote = false;
+                    }
                 }
 
                 if (payload.type === 'rtc_answer' && isLocked && activeTargetId === payload.senderId) {
-                    if (peerConnection && peerConnection.currentRemoteDescription) return;
-
-                    await peerConnection.setRemoteDescription(new RTCSessionDescription(payload.answer));
+                    // 🔧 ATOMIC LOCK for answer as well
+                    if (isSettingRemote) return;
+                    isSettingRemote = true;
+                    try {
+                        if (peerConnection && peerConnection.currentRemoteDescription) {
+                            return; // already set
+                        }
+                        await peerConnection.setRemoteDescription(new RTCSessionDescription(payload.answer));
+                    } catch (e) {
+                        console.warn('Error handling answer', e);
+                    } finally {
+                        isSettingRemote = false;
+                    }
                 }
 
                 if (payload.type === 'ice_candidate' && isLocked && activeTargetId === payload.senderId) {
-                    try { await peerConnection.addIceCandidate(new RTCIceCandidate(payload.candidate)); } 
-                    catch (e) {}
+                    try {
+                        if (peerConnection && peerConnection.remoteDescription && peerConnection.signalingState !== 'closed') {
+                            await peerConnection.addIceCandidate(new RTCIceCandidate(payload.candidate));
+                        }
+                    } catch (e) {}
                 }
             }
         }
@@ -671,17 +663,36 @@
                 }
             };
 
+            // 🔧 FIXED ICE STATE HANDLING – store timeouts and clear them
             peerConnection.oniceconnectionstatechange = () => {
                 if (!peerConnection) return;
                 
-                if (peerConnection.iceConnectionState === 'failed') {
-                    setTimeout(() => {
+                const state = peerConnection.iceConnectionState;
+
+                if (state === 'connected' || state === 'completed') {
+                    // Clear any pending disconnect/failed timers
+                    if (iceDisconnectTimeout) {
+                        clearTimeout(iceDisconnectTimeout);
+                        iceDisconnectTimeout = null;
+                    }
+                    if (iceFailedTimeout) {
+                        clearTimeout(iceFailedTimeout);
+                        iceFailedTimeout = null;
+                    }
+                    clearTimeout(webrtcTimeoutTimer);
+                    webrtcTimeoutTimer = null;
+
+                } else if (state === 'failed') {
+                    if (iceFailedTimeout) clearTimeout(iceFailedTimeout);
+                    iceFailedTimeout = setTimeout(() => {
                         if (peerConnection && peerConnection.iceConnectionState === 'failed') {
                             terminateSession(true);
                         }
                     }, 1500);
-                } else if (peerConnection.iceConnectionState === 'disconnected') {
-                    setTimeout(() => {
+
+                } else if (state === 'disconnected') {
+                    if (iceDisconnectTimeout) clearTimeout(iceDisconnectTimeout);
+                    iceDisconnectTimeout = setTimeout(() => {
                         if (peerConnection && peerConnection.iceConnectionState === 'disconnected') {
                             terminateSession(true);
                         }
@@ -949,6 +960,11 @@
             
             clearAllMatchmakingTimers();
             
+            // Clear any pending ICE timers
+            if (iceDisconnectTimeout) clearTimeout(iceDisconnectTimeout);
+            if (iceFailedTimeout) clearTimeout(iceFailedTimeout);
+            iceDisconnectTimeout = iceFailedTimeout = null;
+            
             clearTimeout(typingTimer);
             amITyping = false;
             
@@ -977,6 +993,9 @@
             }
         }
 
+        // ═══════════════════════════════════════════════════════════════════
+        // 📊 ADMIN SYNC – unchanged
+        // ═══════════════════════════════════════════════════════════════════
         const adminSyncClient = mqtt.connect('wss://broker.emqx.io:8084/mqtt');
         
         adminSyncClient.on('connect', () => {
