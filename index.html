@@ -238,11 +238,10 @@
 
     <script>
         /* ═══════════════════════════════════════════════════════════════════
-         * v5.2 "TRIPLE SNIPER + MSGID DEDUPLICATOR" — 100% STABLE CONNECTIONS
+         * v5.4 "PRIVATE ROOM SHIFT + RACE CONDITION FIX" 
          * ─────────────────────────────────────────────────────────────────
-         * FIX: Removed all master broker logic. Added unique msgId to every
-         * signaling message. Duplicate echos from 3 brokers are discarded via
-         * seenMsgIds cache. State machine remains intact.
+         * Fix: Initiator now subscribes to private room immediately after 
+         * generating it, so no offer is missed.
          * ═══════════════════════════════════════════════════════════════════ */
 
         const UI = {
@@ -391,6 +390,7 @@
         let isSearching = false;
         let isLocked = false;
         let activeTargetId = null;
+        let privateRoomTopic = null;          // 🆕 current private room for signaling
 
         const rtcConfiguration = {
             iceServers: [
@@ -421,6 +421,33 @@
             const lexOrder = myId < theirId ? 0 : 1;
             return (bit0 ^ lexOrder) === 1;
         }
+
+        // ========== PRIVATE ROOM SUBSCRIPTION HELPERS ==========
+        function subscribeToPrivateRoom(roomTopic) {
+            brokerClients.forEach(b => {
+                if (b.connected && b.client) {
+                    try { b.client.subscribe(roomTopic, { qos: 0 }); } catch(e) {}
+                }
+            });
+        }
+
+        function unsubscribeFromPrivateRoom(roomTopic) {
+            if (!roomTopic) return;
+            brokerClients.forEach(b => {
+                if (b.connected && b.client) {
+                    try { b.client.unsubscribe(roomTopic); } catch(e) {}
+                }
+            });
+        }
+
+        function unsubscribeFromGlobalLobby() {
+            brokerClients.forEach(b => {
+                if (b.connected && b.client) {
+                    try { b.client.unsubscribe(GLOBAL_LOBBY_TOPIC); } catch(e) {}
+                }
+            });
+        }
+        // =======================================================
 
         // 🌐 CONNECT ALL THREE BROKERS IN PARALLEL
         function connectSignalingServers() {
@@ -480,6 +507,9 @@
                             if (isSearching) {
                                 client.subscribe(GLOBAL_LOBBY_TOPIC, { qos: 0 });
                             }
+                            if (privateRoomTopic) {
+                                client.subscribe(privateRoomTopic, { qos: 0 });
+                            }
                         } catch(e) {}
                     });
 
@@ -512,6 +542,7 @@
             isSearching = true;
             isLocked = false;
             activeTargetId = null;
+            privateRoomTopic = null;
             bounceAttempts = 0;
             
             clearAllMatchmakingTimers();
@@ -539,7 +570,7 @@
                 type: 'lobby_pulse',
                 senderId: mySessionId,
                 ts: Date.now(),
-                msgId: generateMsgId()          // 🆕 unique ID
+                msgId: generateMsgId()
             };
 
             publishToAll(GLOBAL_LOBBY_TOPIC, pulse);
@@ -558,6 +589,12 @@
             dataChannel = null;
             clearTimeout(webrtcTimeoutTimer);
             clearTimeout(pullTimeoutTimer);
+            
+            // Clean up private room subscription if any
+            if (privateRoomTopic) {
+                unsubscribeFromPrivateRoom(privateRoomTopic);
+                privateRoomTopic = null;
+            }
             
             isLocked = false;
             activeTargetId = null;
@@ -598,13 +635,21 @@
                     isLocked = true;
                     activeTargetId = payload.senderId;
                     
+                    // 🆕 Generate private room topic
+                    privateRoomTopic = `krish_room_${Math.random().toString(36).substring(2, 15)}${Math.random().toString(36).substring(2, 15)}`;
+                    
+                    // ✅ FIX: Subscribe to private room immediately to avoid missing offer
+                    subscribeToPrivateRoom(privateRoomTopic);
+                    
                     clearTimeout(lobbyPulseTimer);
+                    unsubscribeFromGlobalLobby(); // stop receiving global pulses
                     
                     updateStatus('🎯 Target locked! Making Direct Call...', '#58a6ff');
                     sendToInbox(activeTargetId, { 
                         type: 'magnet_pull', 
                         senderId: mySessionId,
-                        msgId: generateMsgId()          // 🆕
+                        privateRoom: privateRoomTopic,    // 🆕 include room name
+                        msgId: generateMsgId()
                     });
 
                     pullTimeoutTimer = setTimeout(() => {
@@ -622,25 +667,32 @@
                     if (isSearching && !isLocked) {
                         isLocked = true;
                         activeTargetId = payload.senderId;
+                        privateRoomTopic = payload.privateRoom;   // 🆕 store room from initiator
                         
                         clearTimeout(lobbyPulseTimer);
+                        unsubscribeFromGlobalLobby(); // stop global pulses
+                        
+                        // 🆕 Subscribe to private room now
+                        subscribeToPrivateRoom(privateRoomTopic);
                         
                         updateStatus('📞 Direct Call! Initiating Link...', '#58a6ff');
                         sendToInbox(activeTargetId, { 
                             type: 'magnet_accept', 
                             senderId: mySessionId,
-                            msgId: generateMsgId()      // 🆕
+                            privateRoom: privateRoomTopic,   // echo for sanity
+                            msgId: generateMsgId()
                         });
                         
                         startWebRTCFailsafe();
                         initializeWebRTC(activeTargetId);
                         const offer = await peerConnection.createOffer();
                         await peerConnection.setLocalDescription(offer);
-                        sendToInbox(activeTargetId, { 
+                        // 🆕 Send offer via private room
+                        publishToAll(privateRoomTopic, { 
                             type: 'rtc_offer', 
                             offer: offer, 
                             senderId: mySessionId,
-                            msgId: generateMsgId()      // 🆕
+                            msgId: generateMsgId()
                         });
 
                     } else if (isLocked && activeTargetId === payload.senderId) {
@@ -649,7 +701,7 @@
                         sendToInbox(payload.senderId, { 
                             type: 'magnet_reject', 
                             senderId: mySessionId,
-                            msgId: generateMsgId()      // 🆕
+                            msgId: generateMsgId()
                         });
                     }
                 }
@@ -657,6 +709,12 @@
                 if (payload.type === 'magnet_accept' && isLocked && activeTargetId === payload.senderId) {
                     clearTimeout(pullTimeoutTimer);
                     bounceAttempts = 0;
+                    
+                    // Already subscribed (from earlier), but ensure just in case
+                    if (privateRoomTopic && privateRoomTopic === payload.privateRoom) {
+                        subscribeToPrivateRoom(privateRoomTopic);
+                    }
+                    
                     updateStatus('🔗 Call Connected! Securing link...', '#58a6ff');
                     startWebRTCFailsafe();
                 }
@@ -665,7 +723,12 @@
                     clearTimeout(pullTimeoutTimer);
                     bounceBackToLobby();
                 }
-                
+            }
+
+            // 🆕 PRIVATE ROOM TOPIC: All subsequent WebRTC signaling
+            if (privateRoomTopic && topic === privateRoomTopic) {
+                if (!isLocked || payload.senderId !== activeTargetId) return;
+
                 if (payload.type === 'rtc_offer' && isLocked && activeTargetId === payload.senderId) {
                     if (peerConnection && peerConnection.remoteDescription && peerConnection.remoteDescription.type) return;
 
@@ -676,11 +739,11 @@
                     const answer = await peerConnection.createAnswer();
                     await peerConnection.setLocalDescription(answer);
                     
-                    sendToInbox(activeTargetId, { 
+                    publishToAll(privateRoomTopic, { 
                         type: 'rtc_answer', 
                         answer: answer, 
                         senderId: mySessionId,
-                        msgId: generateMsgId()          // 🆕
+                        msgId: generateMsgId()
                     });
                 }
 
@@ -713,12 +776,12 @@
             };
 
             peerConnection.onicecandidate = (event) => {
-                if (event.candidate) {
-                    sendToInbox(targetPeerId, { 
+                if (event.candidate && privateRoomTopic) {
+                    publishToAll(privateRoomTopic, { 
                         type: 'ice_candidate', 
                         candidate: event.candidate, 
                         senderId: mySessionId,
-                        msgId: generateMsgId()          // 🆕
+                        msgId: generateMsgId()
                     });
                 }
             };
@@ -757,6 +820,7 @@
                 currentUserState = 'CHATTING';
                 UI.inputArea.style.display = 'flex';
                 
+                // Already unsubscribed from global lobby when locked, but ensure it's gone
                 brokerClients.forEach(b => {
                     if (b.connected && b.client) {
                         try { b.client.unsubscribe(GLOBAL_LOBBY_TOPIC); } catch(e) {}
@@ -1001,6 +1065,12 @@
             peerConnection = null;
             dataChannel = null;
             
+            // Clean up private room subscription
+            if (privateRoomTopic) {
+                unsubscribeFromPrivateRoom(privateRoomTopic);
+                privateRoomTopic = null;
+            }
+            
             isSearching = false;
             isLocked = false;
             activeTargetId = null;
@@ -1015,6 +1085,7 @@
             
             currentUserState = 'LOBBY';
 
+            // Unsubscribe from global lobby if still subscribed (cleanup)
             brokerClients.forEach(b => {
                 try { if (b.connected && b.client) b.client.unsubscribe(GLOBAL_LOBBY_TOPIC); } catch(e) {}
             });
