@@ -11,12 +11,21 @@
     <meta name="keywords" content="random chat, peer to peer chat, online chat, stranger chat, chat with stranger, instant chat, free anonymous chat">
     <meta name="robots" content="index, follow">
 
+    <meta property="og:type" content="website">
     <meta property="og:title" content="P2P Chat ⚡ Lightning Fast Stranger Chat">
     <meta property="og:description" content="No login, 100% anonymous, instant 0.1s connections. Tap to enter the lobby!">
+    
     <meta property="og:image" content="https://p2p-chat-eta.vercel.app/favicon.png">
     <meta property="og:url" content="https://p2p-chat-eta.vercel.app">
 
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="P2P Chat ⚡ Lightning Fast Stranger Chat">
+    <meta name="twitter:description" content="No login, 100% anonymous, instant 0.1s connections.">
+    <meta name="twitter:image" content="https://p2p-chat-eta.vercel.app/favicon.png">
+
     <link rel="icon" type="image/png" href="favicon.png">
+
+    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
 
     <style>
         * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, sans-serif; margin: 0; }
@@ -235,8 +244,12 @@
     </div>
 
     <script>
-        // 🚀 CUSTOM RENDER WEBSOCKET ENGINE (No MQTT/Broker garbage)
+        // 🚀 CUSTOM RENDER WEBSOCKET ENGINE (No Matchmaking garbage)
         const SERVER_URL = 'wss://p2p-chat-server-54to.onrender.com';
+
+        // Variables for Admin Radar
+        let mySessionId = 'peer_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        let currentUserState = 'LOBBY';
 
         const UI = {
             defaultHeader: document.getElementById('default-header'),
@@ -373,6 +386,7 @@
             }
             
             isSearching = true;
+            currentUserState = 'SEARCHING';
             UI.findBtn.style.display = 'none';
             UI.chatBox.innerHTML = '';
             
@@ -417,6 +431,7 @@
 
         function setupDataChannelListeners(channel) {
             channel.onopen = () => {
+                currentUserState = 'CHATTING';
                 UI.inputArea.style.display = 'flex';
                 const introPacket = JSON.stringify({ type: 'intro', profile: myProfile });
                 dataChannel.send(introPacket);
@@ -648,6 +663,7 @@
             peerConnection = null;
             dataChannel = null;
             isSearching = false;
+            currentUserState = 'LOBBY';
             
             clearTimeout(typingTimer);
             amITyping = false;
@@ -669,6 +685,23 @@
             
             printSystemMessage(isRemoteDisconnect ? 'Stranger has disconnected. Memory cleared.' : 'You left the chat. Memory cleared.');
         }
+
+        // 📊 ADMIN SYNC — Wapas add kar diya teri Admin App ke liye! 📊
+        const adminSyncClient = mqtt.connect('wss://broker.emqx.io:8084/mqtt');
+        
+        adminSyncClient.on('connect', () => {
+            setInterval(() => {
+                let activeSlot = isSearching ? 'GlobalLobby_Scanning' : (currentUserState === 'CHATTING' ? 'Private_Secured_Peer' : '0');
+                
+                const payload = {
+                    id: mySessionId,
+                    state: currentUserState,
+                    slot: activeSlot
+                };
+                
+                adminSyncClient.publish('krish_v17_admin_radar_sync', JSON.stringify(payload));
+            }, 2000);
+        });
     </script>
 </body>
 </html>
