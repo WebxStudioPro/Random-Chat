@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Privacy Policy - P2P Chat Engine</title>
+    
+    <link rel="icon" type="image/png" href="favicon.png">
+
+    <style>
+        * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, sans-serif; margin: 0; }
+        
+        body { 
+            background-color: #0d1117; 
+            color: #c9d1d9; 
+            line-height: 1.6; 
+            padding: 0;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        #header { 
+            width: 100%; 
+            padding: 20px; 
+            background: rgba(22, 27, 34, 0.95); 
+            backdrop-filter: blur(5px); 
+            text-align: center; 
+            border-bottom: 1px solid #30363d; 
+            box-shadow: 0 4px 15px rgba(0,0,0,0.4); 
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        #header h2 { 
+            color: #58a6ff; 
+            font-size: 22px; 
+            text-transform: uppercase; 
+            letter-spacing: 2px; 
+            font-weight: 800; 
+            text-shadow: 0 0 10px rgba(88,166,255,0.3); 
+            margin-bottom: 5px;
+        }
+
+        .back-link {
+            color: #8b949e;
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 600;
+            transition: color 0.2s;
+        }
+
+        .back-link:hover { color: #58a6ff; text-decoration: underline; }
+
+        .legal-container {
+            width: 100%;
+            max-width: 800px;
+            padding: 40px 20px;
+            background: #0d1117;
+        }
+
+        .legal-container h1 { color: white; font-size: 28px; margin-bottom: 10px; border-bottom: 2px solid #30363d; padding-bottom: 15px;}
+        .last-updated { color: #8b949e; font-size: 13px; margin-bottom: 30px; font-style: italic; }
+
+        .legal-section { margin-bottom: 35px; }
+        .legal-section h3 { color: #58a6ff; font-size: 18px; margin-bottom: 15px; text-transform: uppercase; letter-spacing: 1px;}
+        .legal-section p { font-size: 15px; color: #c9d1d9; margin-bottom: 12px; text-align: justify; }
+        .legal-section ul { margin-left: 20px; margin-bottom: 15px; }
+        .legal-section li { font-size: 15px; margin-bottom: 8px; color: #c9d1d9; }
+        
+        .highlight-box {
+            background: rgba(46, 160, 67, 0.1);
+            border-left: 4px solid #2ea043;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 0 8px 8px 0;
+        }
+
+        .warning-box {
+            background: rgba(218, 54, 51, 0.1);
+            border-left: 4px solid #da3633;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 0 8px 8px 0;
+        }
+
+        /* 🔥 PREMIUM FOOTER 🔥 */
+        .footer-links { text-align: center; padding: 30px 10px; margin-top: auto; font-size: 13px; color: #8b949e; width: 100%; border-bottom: none; border-top: 1px solid #30363d; background: #161b22;}
+    </style>
+</head>
+<body>
+
+    <div id="header">
+        <h2>Legal Policies</h2>
+        <a href="index.html" class="back-link">← Return to Chat Lobby</a>
+    </div>
+
+    <div class="legal-container">
+        <h1>Privacy Policy</h1>
+        <div class="last-updated">Effective Date: February 2026</div>
+
+        <div class="legal-section">
+            <h3>1. Introduction</h3>
+            <p>Your privacy is of the utmost importance to us. This Privacy Policy outlines how our Peer-to-Peer (P2P) Random Chat network ("We", "Us", "Our") handles, processes, and protects your information when you access our platform. Because our architecture differs significantly from traditional server-client chat applications, our data practices are inherently designed to maximize user anonymity.</p>
+        </div>
+
+        <div class="legal-section">
+            <h3>2. Data We DO NOT Collect or Store</h3>
+            <p>To ensure total privacy and anonymity, our platform utilizes direct WebRTC technology. Because data travels directly between you and the connected peer, we explicitly declare that:</p>
+            <div class="highlight-box">
+                <ul>
+                    <li><b>No Chat Logs:</b> We do not monitor, intercept, or store any text messages exchanged during a session.</li>
+                    <li><b>No Media Storage:</b> Audio recordings, voice notes, and images sent over the data channel are never uploaded to our servers.</li>
+                    <li><b>No Personal Accounts:</b> We do not require or store emails, passwords, phone numbers, or real identities. The "Nickname" you choose is temporary and exists only within your browser.</li>
+                </ul>
+            </div>
+            <p>Once a P2P session is disconnected, all memory associated with that connection is permanently flushed and destroyed.</p>
+        </div>
+
+        <div class="legal-section">
+            <h3>3. Data Processed for Matchmaking (Signaling)</h3>
+            <p>To function as a matching engine, our backend server temporarily processes minimal routing data. This process is fully automated:</p>
+            <ul>
+                <li><b>IP Addresses & ICE Candidates:</b> To establish a WebRTC connection, your IP address is temporarily processed by our signaling server to introduce you to a stranger. This routing data is standard internet protocol and is not logged or stored permanently.</li>
+                <li><b>System Radar:</b> We use automated network radar scripts (via MQTT) strictly for counting active users and identifying malicious network abuse (e.g., bot spamming). Abusive IP addresses may be blocked by our firewall to maintain network integrity.</li>
+            </ul>
+        </div>
+
+        <div class="legal-section">
+            <h3>4. Third-Party Advertising and Cookies</h3>
+            <p>To keep the platform 100% free and sustain our high-speed servers, we partner with third-party advertising networks (e.g., Adsterra). Please be aware of the following regarding ad networks:</p>
+            <div class="warning-box">
+                <p>These third-party vendors may use cookies, web beacons, and similar tracking technologies to collect non-personal data (such as your browser type, OS, generalized geographic location, and interaction with ads) to provide targeted advertising.</p>
+            </div>
+            <p>We do not have access to or control over these third-party cookies. The privacy practices of these advertisers are governed by their respective privacy policies. You can configure your browser settings to reject cookies if you prefer not to participate in targeted advertising.</p>
+        </div>
+
+        <div class="legal-section">
+            <h3>5. Peer-to-Peer Risks (Security Disclaimer)</h3>
+            <p>While WebRTC provides End-to-End Encryption (DTLS and SRTP protocols) for the data traveling between peers, connecting directly to another user inherently means your IP address is exposed to the other peer's device (not our server, but the stranger's device). This is a standard characteristic of all P2P networks. By using this service, you accept this technological reality.</p>
+        </div>
+
+        <div class="legal-section">
+            <h3>6. Children’s Privacy (COPPA Compliance)</h3>
+            <p>Our platform is strictly restricted to individuals who are 18 years of age or older. We do not intentionally or knowingly collect, process, or route data for individuals under the age of 18. If we become aware that a minor has bypassed our terms and accessed the platform, we will block the respective IP address to prevent further access.</p>
+        </div>
+
+        <div class="legal-section">
+            <h3>7. Changes to this Privacy Policy</h3>
+            <p>We reserve the right to update this Privacy Policy at any time to reflect technological advancements, legal requirements, or operational changes. All updates will be posted on this page. Your continued use of the platform after modifications implies your acceptance of the updated Privacy Policy.</p>
+        </div>
+        
+    </div>
+
+    <div class="footer-links">
+        &copy; 2026 P2P Chat Engine. All Rights Reserved. <br>
+        <span style="margin-top: 5px; display: inline-block;">Designed for maximum anonymity and high-speed connections.</span>
+    </div>
+
+</body>
+</html>

@@ -14,7 +14,6 @@
     <meta property="og:type" content="website">
     <meta property="og:title" content="P2P Chat ⚡ Lightning Fast Stranger Chat">
     <meta property="og:description" content="No login, 100% anonymous, instant 0.1s connections. Tap to enter the lobby!">
-    
     <meta property="og:image" content="https://p2p-chat-eta.vercel.app/favicon.png">
     <meta property="og:url" content="https://p2p-chat-eta.vercel.app">
 
@@ -68,7 +67,10 @@
         .terms-group { display: flex; align-items: flex-start; gap: 12px; margin-top: 10px; margin-bottom: 25px; background: rgba(0,0,0,0.2); padding: 12px; border-radius: 10px;}
         .terms-group input[type="checkbox"] { width: 20px; height: 20px; margin-top: 1px; accent-color: #58a6ff; cursor: pointer;}
         .terms-group label { color: #8b949e; font-size: 12px; line-height: 1.5; text-transform: none; letter-spacing: normal; font-weight: normal;}
+        
+        /* 🔥 NEW LINK STYLING 🔥 */
         .terms-link { color: #58a6ff; text-decoration: underline; cursor: pointer; font-weight: bold;}
+        .terms-link:hover { color: #79c0ff; }
         
         #save-profile-btn { width: 100%; padding: 16px; border-radius: 12px; background: linear-gradient(135deg, #2ea043 0%, #238636 100%); color: white; border: none; font-weight: 800; font-size: 16px; transition: all 0.2s ease; cursor: pointer; text-transform: uppercase; letter-spacing: 2px; box-shadow: 0 8px 20px rgba(35, 134, 54, 0.3);}
         #save-profile-btn:active { background: #2ea043; transform: scale(0.97); box-shadow: 0 4px 10px rgba(35, 134, 54, 0.4);}
@@ -78,6 +80,11 @@
         .seo-article h3 { color: #c9d1d9; font-size: 15px; margin-top: 20px; margin-bottom: 8px;}
         .seo-article p { font-size: 13px; line-height: 1.6; margin-bottom: 15px;}
         .seo-article strong { color: #58a6ff; font-weight: normal;}
+
+        /* 🔥 PREMIUM FOOTER CSS 🔥 */
+        .footer-links { text-align: center; padding: 20px 10px; margin-top: auto; font-size: 12px; color: #8b949e; width: 100%; border-top: 1px solid #30363d; background: #0d1117;}
+        .footer-links a { color: #58a6ff; text-decoration: none; margin: 0 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px;}
+        .footer-links a:hover { text-decoration: underline; color: #79c0ff;}
 
         #chat-window { flex: 1; overflow-y: auto; padding: 20px 15px; display: none; flex-direction: column; gap: 12px; scroll-behavior: smooth;}
         .message { padding: 12px 16px; border-radius: 18px; max-width: 85%; font-size: 15px; word-wrap: break-word; box-shadow: 0 2px 5px rgba(0,0,0,0.15); position: relative; line-height: 1.4;}
@@ -114,16 +121,11 @@
         .modal-box { background: #161b22; width: 90%; max-width: 420px; border-radius: 20px; padding: 30px; border: 1px solid #30363d; box-shadow: 0 25px 50px rgba(0,0,0,0.6); animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); display: flex; flex-direction: column;}
         .modal-box h3 { color: white; font-size: 20px; margin-bottom: 15px; text-align: center; font-weight: 800;}
         
-        .tnc-content { background: #0d1117; padding: 18px; border-radius: 12px; border: 1px solid #30363d; color: #8b949e; font-size: 13px; line-height: 1.6; max-height: 280px; overflow-y: auto; margin-bottom: 25px;}
-        .tnc-content h4 { color: #58a6ff; margin-top: 12px; margin-bottom: 6px; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px;}
-        .tnc-content h4.warning { color: #ff8182; }
-
         .modal-buttons { display: flex; gap: 15px; }
         .btn-cancel { flex: 1; padding: 14px; border-radius: 12px; background: #21262d; color: white; border: 1px solid #30363d; font-weight: bold; font-size: 15px; cursor: pointer; transition: 0.2s;}
         .btn-cancel:active { background: #30363d; }
         .btn-leave { flex: 1; padding: 14px; border-radius: 12px; background: #da3633; color: white; border: none; font-weight: bold; font-size: 15px; cursor: pointer; transition: 0.2s; box-shadow: 0 4px 12px rgba(218, 54, 51, 0.3);}
         .btn-leave:active { background: #f85149; }
-        .btn-full { width: 100%; background: linear-gradient(135deg, #388bfd 0%, #1f6feb 100%); border: none; color: white; padding: 16px; border-radius: 12px; font-weight: bold; cursor: pointer; font-size: 16px; letter-spacing: 1px;}
 
         @keyframes popIn { from { transform: scale(0.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
     </style>
@@ -164,26 +166,6 @@
         </div>
     </div>
 
-    <div id="tnc-modal-overlay" class="modal-overlay">
-        <div class="modal-box">
-            <h3>Platform Rules & T&C</h3>
-            <div class="tnc-content">
-                <h4>1. Acceptance & Age Restriction</h4>
-                You must be exactly 18 years or older to access this network. By proceeding, you legally verify your age.
-                
-                <h4>2. Peer-to-Peer Architecture</h4>
-                This platform uses direct WebRTC technology. <b>We do NOT monitor, host, or store your text, audio, or images on any server.</b>
-                
-                <h4>3. Zero Developer Liability</h4>
-                Because connections are direct between users, the platform developers are 100% indemnified and cannot be held liable for any user-generated actions or disputes.
-                
-                <h4 class="warning">4. Strict Zero-Tolerance Policy</h4>
-                <b>PROHIBITED:</b> Any form of harassment, abuse, blackmail, or sharing of illegal explicit content is strictly forbidden. Users reported or flagged by the network logic for malicious behavior will face an <b>immediate and permanent IP/Device ban</b> without warning.
-            </div>
-            <button class="btn-full" onclick="closeTncModal()">I Agree & Understand</button>
-        </div>
-    </div>
-
     <div id="setup-container">
         <div class="setup-box">
             <h3>Create Your Profile</h3>
@@ -202,7 +184,7 @@
             
             <div class="terms-group">
                 <input type="checkbox" id="terms-checkbox">
-                <label>I am 18+ and accept the <span class="terms-link" onclick="showTncModal()">Rules & Policy</span>. I understand violations result in a permanent network ban.</label>
+                <label>I am 18+ and accept the <a href="terms.html" target="_blank" class="terms-link">Terms of Service</a> and <a href="privacy.html" target="_blank" class="terms-link">Privacy Policy</a>. I understand violations result in a permanent ban.</label>
             </div>
 
             <button id="save-profile-btn" onclick="saveProfile()">Enter Lobby</button>
@@ -218,6 +200,14 @@
             <h3>Lightning Fast Matchmaking</h3>
             <p>Tired of waiting for connections? Our unique high-frequency network radar scans hundreds of global slots to find you a <strong>stranger chat</strong> partner in milliseconds. Whether you want to make new friends, practice a foreign language, or simply enjoy a quick <strong>random chat</strong>, our server-less engine ensures zero lag and instant connectivity.</p>
         </article>
+
+        <div class="footer-links">
+            <a href="terms.html" target="_blank">Terms of Service</a> | 
+            <a href="privacy.html" target="_blank">Privacy Policy</a> |
+            <a href="safety.html" target="_blank">Safety & Guidelines</a>
+            <br><br>
+            &copy; 2026 P2P Chat Engine. All rights reserved.
+        </div>
     </div>
 
     <div id="chat-window">
@@ -244,7 +234,7 @@
     </div>
 
     <script>
-        // 🚀 CUSTOM RENDER WEBSOCKET ENGINE (No Matchmaking garbage)
+        // 🚀 CUSTOM RENDER WEBSOCKET ENGINE
         const SERVER_URL = 'wss://p2p-chat-server-54to.onrender.com';
 
         // Variables for Admin Radar
@@ -267,7 +257,6 @@
             userNameInput: document.getElementById('user-name'),
             userGenderInput: document.getElementById('user-gender'),
             exitModal: document.getElementById('exit-modal-overlay'),
-            tncModal: document.getElementById('tnc-modal-overlay'),
             termsCheckbox: document.getElementById('terms-checkbox'),
             micBtn: document.getElementById('mic-btn')
         };
@@ -276,8 +265,6 @@
         function showExitModal() { UI.exitModal.style.display = 'flex'; }
         function closeModal() { UI.exitModal.style.display = 'none'; }
         function confirmExit() { closeModal(); terminateSession(); }
-        function showTncModal() { UI.tncModal.style.display = 'flex'; }
-        function closeTncModal() { UI.tncModal.style.display = 'none'; }
 
         // Adsterra Refresh Logic
         let lastAdRefreshTime = 0;
@@ -325,7 +312,7 @@
 
         function saveProfile() {
             if (!UI.termsCheckbox.checked) {
-                alert("⚠️ You must agree to the Platform Rules and confirm you are 18+ to enter.");
+                alert("⚠️ You must agree to the Terms of Service and Privacy Policy, and confirm you are 18+ to enter.");
                 return;
             }
             myProfile.name = UI.userNameInput.value.trim() || 'Stranger';
@@ -337,7 +324,6 @@
             
             updateStatus('Connecting to Global Server...', '#d29922');
 
-            // Connect to Render WebSocket
             ws = new WebSocket(SERVER_URL);
             
             ws.onopen = () => {
