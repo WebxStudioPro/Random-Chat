@@ -132,10 +132,7 @@
 </head>
 <body>
 
-    <div id="ad-spacer">
-        <script async="async" data-cfasync="false" src="https://pl28743999.effectivegatecpm.com/f0e4e82ffb718c35b87644553bcf64f1/invoke.js"></script>
-        <div id="container-f0e4e82ffb718c35b87644553bcf64f1"></div>
-    </div>
+    <div id="ad-spacer"></div>
 
     <div id="header">
         <div id="default-header">
@@ -184,7 +181,7 @@
             
             <div class="terms-group">
                 <input type="checkbox" id="terms-checkbox">
-                <label>I am 18+ and accept the <a href="terms.html" target="_blank" class="terms-link">Terms of Service</a> and <a href="privacy.html" target="_blank" class="terms-link">Privacy Policy</a>. I understand violations result in a permanent ban.</label>
+                <label>I am 18+ and accept the <a href="terms.html" target="_blank" class="terms-link" onclick="triggerAdRefresh()">Terms of Service</a> and <a href="privacy.html" target="_blank" class="terms-link" onclick="triggerAdRefresh()">Privacy Policy</a>. I understand violations result in a permanent ban.</label>
             </div>
 
             <button id="save-profile-btn" onclick="saveProfile()">Enter Lobby</button>
@@ -202,9 +199,9 @@
         </article>
 
         <div class="footer-links">
-            <a href="terms.html" target="_blank">Terms of Service</a> | 
-            <a href="privacy.html" target="_blank">Privacy Policy</a> |
-            <a href="safety.html" target="_blank">Safety & Guidelines</a>
+            <a href="terms.html" target="_blank" onclick="triggerAdRefresh()">Terms of Service</a> | 
+            <a href="privacy.html" target="_blank" onclick="triggerAdRefresh()">Privacy Policy</a> |
+            <a href="safety.html" target="_blank" onclick="triggerAdRefresh()">Safety & Guidelines</a>
             <br><br>
             &copy; 2026 P2P Chat Engine. All rights reserved.
         </div>
@@ -216,6 +213,7 @@
     
     <div id="action-area">
         <button id="find-btn" onclick="initiateMatchmaking()">CONNECT TO STRANGER</button>
+        
         <div id="input-container">
             <button id="disconnect-btn" onclick="showExitModal()">✖</button>
             
@@ -264,15 +262,30 @@
         // UI & Modal Functions
         function showExitModal() { UI.exitModal.style.display = 'flex'; }
         function closeModal() { UI.exitModal.style.display = 'none'; }
-        function confirmExit() { closeModal(); terminateSession(); }
+        
+        // Modal Exit also triggers Ad Refresh
+        function confirmExit() { 
+            closeModal(); 
+            terminateSession(); 
+            triggerAdRefresh(); 
+        }
 
-        // Adsterra Refresh Logic
+        // 🔥 THE SMART 10-SECOND AD LOCK LOGIC 🔥
         let lastAdRefreshTime = 0;
         let adRefreshInterval = null;
+        
         function triggerAdRefresh() {
             const now = Date.now();
-            if (now - lastAdRefreshTime < 10000) return;
-            lastAdRefreshTime = now;
+            
+            // 🛡️ THE MASTER LOCK: Agar 10,000 milliseconds (10 seconds) nahi guzre, toh function yahi ruk jayega (Return)
+            if (now - lastAdRefreshTime < 10000) {
+                console.log("Ad Blocked: 10 seconds not passed yet.");
+                return; 
+            }
+            
+            lastAdRefreshTime = now; // Lock updated to current time
+            console.log("Ad Refreshing...");
+            
             try {
                 const spacer = document.getElementById('ad-spacer');
                 if (spacer) {
@@ -280,6 +293,7 @@
                     const newDiv = document.createElement('div');
                     newDiv.id = 'container-f0e4e82ffb718c35b87644553bcf64f1';
                     spacer.appendChild(newDiv);
+                    
                     const newScript = document.createElement('script');
                     newScript.async = true;
                     newScript.setAttribute('data-cfasync', 'false');
@@ -288,6 +302,13 @@
                 }
             } catch(e) {}
         }
+
+        // INITIAL LOAD DELAY (3 Seconds for safe developer testing)
+        window.onload = () => {
+            setTimeout(() => {
+                triggerAdRefresh();
+            }, 3000);
+        };
 
         let ws = null;
         let peerConnection = null;
@@ -324,11 +345,13 @@
             
             updateStatus('Connecting to Global Server...', '#d29922');
 
+            // Form save hote hi ek ad refresh call hoga (10 sec lock checked)
+            triggerAdRefresh();
+
             ws = new WebSocket(SERVER_URL);
             
             ws.onopen = () => {
                 updateStatus(`Welcome, ${myProfile.name}. Ready to connect.`, '#3fb950');
-                triggerAdRefresh();
             };
 
             ws.onmessage = async (event) => {
@@ -380,6 +403,8 @@
             printSystemMessage('Finding strangers...');
             
             ws.send(JSON.stringify({ type: 'find_stranger' }));
+            
+            // Find dabate hi ek ad refresh call hoga (10 sec lock checked)
             triggerAdRefresh();
         }
 
@@ -422,6 +447,7 @@
                 const introPacket = JSON.stringify({ type: 'intro', profile: myProfile });
                 dataChannel.send(introPacket);
 
+                // Auto Ad Refresh every 60 seconds while chatting
                 clearInterval(adRefreshInterval);
                 adRefreshInterval = setInterval(() => {
                     triggerAdRefresh();
@@ -643,7 +669,6 @@
         function terminateSession(isRemoteDisconnect = false) {
             clearInterval(adRefreshInterval);
             adRefreshInterval = null;
-            triggerAdRefresh();
 
             if (peerConnection) { peerConnection.close(); }
             peerConnection = null;
