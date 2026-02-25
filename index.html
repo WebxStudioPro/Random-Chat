@@ -333,6 +333,19 @@
         let recordTimerInterval = null;
         let recordSeconds = 0;
 
+        // ✅ FIX 1: ICE Candidate Queue System
+        let iceCandidateQueue = [];
+        let remoteDescriptionSet = false;
+
+        // ✅ FIX 2: WebSocket Reconnect Variables
+        let wsReconnectAttempts = 0;
+        let wsReconnectTimer = null;
+        let wsPingInterval = null;
+        let intentionalClose = false;
+
+        // ✅ FIX 7: Admin MQTT Interval ID
+        let adminSyncIntervalId = null;
+
         const rtcConfiguration = {
             iceServers: [
                 { urls: 'stun:stun.l.google.com:19302' },
@@ -340,6 +353,46 @@
                 { urls: 'stun:stun2.l.google.com:19302' }
             ]
         };
+
+        // ✅ FIX 5: Safe Data Channel Send Helper
+        function safeSend(data) {
+            if (dataChannel && dataChannel.readyState === 'open') {
+                try {
+                    dataChannel.send(data);
+                    return true;
+                } catch (e) {
+                    console.warn('safeSend failed:', e.message);
+                    return false;
+                }
+            }
+            return false;
+        }
+
+        // ✅ FIX 5: Safe WebSocket Send Helper
+        function wsSafeSend(data) {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                try {
+                    ws.send(data);
+                    return true;
+                } catch (e) {
+                    console.warn('wsSafeSend failed:', e.message);
+                    return false;
+                }
+            }
+            return false;
+        }
+
+        // ✅ FIX 1: Flush ICE candidate queue after remote description is set
+        async function flushIceCandidateQueue() {
+            while (iceCandidateQueue.length > 0) {
+                const candidate = iceCandidateQueue.shift();
+                try {
+                    await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+                } catch (e) {
+                    console.warn('Queued ICE candidate failed:', e.message);
+                }
+            }
+        }
 
         function saveProfile() {
             if (!UI.termsCheckbox.checked) {
@@ -358,31 +411,86 @@
             // Form save hote hi ek ad refresh call hoga (10 sec lock checked)
             triggerAdRefresh();
 
+            connectWebSocket();
+        }
+
+        // ✅ FIX 2 & 3: WebSocket Connection with Auto-Reconnect & Heartbeat
+        function connectWebSocket() {
+            // Clear any existing reconnect timer
+            if (wsReconnectTimer) {
+                clearTimeout(wsReconnectTimer);
+                wsReconnectTimer = null;
+            }
+            // Clear any existing ping interval
+            if (wsPingInterval) {
+                clearInterval(wsPingInterval);
+                wsPingInterval = null;
+            }
+
+            intentionalClose = false;
             ws = new WebSocket(SERVER_URL);
             
             ws.onopen = () => {
+                wsReconnectAttempts = 0; // Reset on successful connection
                 updateStatus(`Welcome, ${myProfile.name}. Ready to connect.`, '#3fb950');
+
+                // ✅ FIX 3: WebSocket Heartbeat — ping every 25 seconds
+                wsPingInterval = setInterval(() => {
+                    wsSafeSend(JSON.stringify({ type: 'ping' }));
+                }, 25000);
             };
 
             ws.onmessage = async (event) => {
                 const data = JSON.parse(event.data);
                 
+                // Ignore pong responses
+                if (data.type === 'pong') return;
+
                 if (data.type === 'matched') {
                     isSearching = false;
                     updateStatus('Stranger Found! Linking P2P...', '#58a6ff');
                     setupWebRTC(data.role === 'initiator');
                 } 
                 else if (data.type === 'offer') {
-                    await peerConnection.setRemoteDescription(new RTCSessionDescription({ type: 'offer', sdp: data.sdp }));
-                    const answer = await peerConnection.createAnswer();
-                    await peerConnection.setLocalDescription(answer);
-                    ws.send(JSON.stringify({ type: 'answer', sdp: answer.sdp }));
+                    // ✅ FIX 4: Try-catch on setRemoteDescription + createAnswer
+                    try {
+                        // ✅ FIX 1: Reset queue before setting remote description
+                        remoteDescriptionSet = false;
+                        await peerConnection.setRemoteDescription(new RTCSessionDescription({ type: 'offer', sdp: data.sdp }));
+                        remoteDescriptionSet = true;
+                        await flushIceCandidateQueue();
+
+                        const answer = await peerConnection.createAnswer();
+                        await peerConnection.setLocalDescription(answer);
+                        wsSafeSend(JSON.stringify({ type: 'answer', sdp: answer.sdp }));
+                    } catch (e) {
+                        console.error('Offer handling failed:', e.message);
+                        terminateSession(true);
+                    }
                 } 
                 else if (data.type === 'answer') {
-                    await peerConnection.setRemoteDescription(new RTCSessionDescription({ type: 'answer', sdp: data.sdp }));
+                    // ✅ FIX 4: Try-catch on setRemoteDescription
+                    try {
+                        remoteDescriptionSet = false;
+                        await peerConnection.setRemoteDescription(new RTCSessionDescription({ type: 'answer', sdp: data.sdp }));
+                        remoteDescriptionSet = true;
+                        await flushIceCandidateQueue();
+                    } catch (e) {
+                        console.error('Answer handling failed:', e.message);
+                        terminateSession(true);
+                    }
                 } 
                 else if (data.type === 'ice_candidate') {
-                    peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+                    // ✅ FIX 1: Queue ICE candidates if remote description not set yet
+                    if (remoteDescriptionSet && peerConnection) {
+                        try {
+                            await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+                        } catch (e) {
+                            console.warn('ICE candidate add failed:', e.message);
+                        }
+                    } else {
+                        iceCandidateQueue.push(data.candidate);
+                    }
                 } 
                 else if (data.type === 'partner_left') {
                     terminateSession(true);
@@ -393,8 +501,24 @@
                 updateStatus('Server Error! Check connection.', '#da3633');
             };
             
+            // ✅ FIX 2: Auto-reconnect on close
             ws.onclose = () => {
-                updateStatus('Disconnected from Server.', '#da3633');
+                clearInterval(wsPingInterval);
+                wsPingInterval = null;
+
+                if (intentionalClose) {
+                    updateStatus('Disconnected from Server.', '#da3633');
+                    return;
+                }
+
+                updateStatus('⚡ Reconnecting...', '#d29922');
+                
+                const delay = Math.min(1000 * Math.pow(2, wsReconnectAttempts), 10000);
+                wsReconnectAttempts++;
+
+                wsReconnectTimer = setTimeout(() => {
+                    connectWebSocket();
+                }, delay);
             };
         }
 
@@ -412,19 +536,27 @@
             updateStatus('⚡ Activating Global Radar... Scanning...', '#d29922');
             printSystemMessage('Finding strangers...');
             
-            ws.send(JSON.stringify({ type: 'find_stranger' }));
+            wsSafeSend(JSON.stringify({ type: 'find_stranger' }));
             
             // Find dabate hi ek ad refresh call hoga (10 sec lock checked)
             triggerAdRefresh();
         }
 
         function setupWebRTC(isInitiator) {
-            if (peerConnection) peerConnection.close();
+            // ✅ FIX 6: Clean teardown of previous connection
+            if (peerConnection) {
+                try { peerConnection.close(); } catch(e) {}
+            }
+
+            // ✅ FIX 1: Reset ICE queue for new connection
+            iceCandidateQueue = [];
+            remoteDescriptionSet = false;
+
             peerConnection = new RTCPeerConnection(rtcConfiguration);
 
             peerConnection.onicecandidate = (event) => {
                 if (event.candidate) {
-                    ws.send(JSON.stringify({ type: 'ice_candidate', candidate: event.candidate }));
+                    wsSafeSend(JSON.stringify({ type: 'ice_candidate', candidate: event.candidate }));
                 }
             };
 
@@ -438,10 +570,17 @@
                 dataChannel = peerConnection.createDataChannel('chat_channel');
                 setupDataChannelListeners(dataChannel);
 
-                peerConnection.createOffer().then(offer => {
-                    peerConnection.setLocalDescription(offer);
-                    ws.send(JSON.stringify({ type: 'offer', sdp: offer.sdp }));
-                });
+                // ✅ FIX 4: Try-catch on createOffer
+                (async () => {
+                    try {
+                        const offer = await peerConnection.createOffer();
+                        await peerConnection.setLocalDescription(offer);
+                        wsSafeSend(JSON.stringify({ type: 'offer', sdp: offer.sdp }));
+                    } catch (e) {
+                        console.error('Create offer failed:', e.message);
+                        terminateSession(true);
+                    }
+                })();
             } else {
                 peerConnection.ondatachannel = (event) => {
                     dataChannel = event.channel;
@@ -454,8 +593,8 @@
             channel.onopen = () => {
                 currentUserState = 'CHATTING';
                 UI.inputArea.style.display = 'flex';
-                const introPacket = JSON.stringify({ type: 'intro', profile: myProfile });
-                dataChannel.send(introPacket);
+                // ✅ FIX 5: Use safeSend for intro packet
+                safeSend(JSON.stringify({ type: 'intro', profile: myProfile }));
 
                 // Auto Ad Refresh every 60 seconds while chatting
                 clearInterval(adRefreshInterval);
@@ -507,17 +646,17 @@
             channel.onclose = () => terminateSession(true);
         }
 
-        // Typing & Messaging Logic
+        // Typing & Messaging Logic — ✅ FIX 5: All using safeSend
         function handleTypingEvent() {
             if (!dataChannel || dataChannel.readyState !== 'open') return;
             if (!amITyping) {
                 amITyping = true;
-                dataChannel.send(JSON.stringify({ type: 'typing', status: true }));
+                safeSend(JSON.stringify({ type: 'typing', status: true }));
             }
             clearTimeout(typingTimer);
             typingTimer = setTimeout(() => {
                 amITyping = false;
-                dataChannel.send(JSON.stringify({ type: 'typing', status: false }));
+                safeSend(JSON.stringify({ type: 'typing', status: false }));
             }, 1500);
         }
 
@@ -526,11 +665,11 @@
             if (text === '' || !dataChannel || dataChannel.readyState !== 'open') return;
 
             const msgPacket = JSON.stringify({ type: 'chat', content: text, profile: myProfile });
-            dataChannel.send(msgPacket);
+            safeSend(msgPacket);
             
             amITyping = false;
             clearTimeout(typingTimer);
-            dataChannel.send(JSON.stringify({ type: 'typing', status: false }));
+            safeSend(JSON.stringify({ type: 'typing', status: false }));
 
             renderMessage(text, 'mine', 'text');
             UI.msgInput.value = '';
@@ -540,7 +679,7 @@
             if (e.key === 'Enter') sendDataChannelMessage();
         }
 
-        // Image Handling
+        // Image Handling — ✅ FIX 5: Using safeSend
         function handleImageSelection(event) {
             const file = event.target.files[0];
             if (!file || !dataChannel || dataChannel.readyState !== 'open') return;
@@ -560,7 +699,7 @@
                     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
                     
                     const base64Img = canvas.toDataURL('image/jpeg', 0.5);
-                    dataChannel.send(JSON.stringify({ type: 'image', content: base64Img, profile: myProfile }));
+                    safeSend(JSON.stringify({ type: 'image', content: base64Img, profile: myProfile }));
                     renderMessage(base64Img, 'mine', 'image');
                 }
             };
@@ -612,6 +751,7 @@
             resetAudioUI();
         }
 
+        // ✅ FIX 5: Using safeSend for audio
         function sendAudioRecording() {
             if (mediaRecorder && mediaRecorder.state !== 'inactive') {
                 mediaRecorder.onstop = () => {
@@ -620,7 +760,7 @@
                     reader.readAsDataURL(audioBlob);
                     reader.onloadend = () => {
                         const base64Audio = reader.result;
-                        dataChannel.send(JSON.stringify({ type: 'audio', content: base64Audio, profile: myProfile }));
+                        safeSend(JSON.stringify({ type: 'audio', content: base64Audio, profile: myProfile }));
                         renderMessage(base64Audio, 'mine', 'audio');
                     };
                     mediaRecorder.stream.getTracks().forEach(track => track.stop());
@@ -676,11 +816,24 @@
 
         function updateStatus(text, color) { UI.status.innerText = text; UI.status.style.color = color; }
 
+        // ✅ FIX 6: Clean Peer Connection Teardown
         function terminateSession(isRemoteDisconnect = false) {
             clearInterval(adRefreshInterval);
             adRefreshInterval = null;
 
-            if (peerConnection) { peerConnection.close(); }
+            // ✅ FIX 1: Clear ICE candidate queue
+            iceCandidateQueue = [];
+            remoteDescriptionSet = false;
+
+            // ✅ FIX 6: Stop all media tracks from peer connection
+            if (peerConnection) {
+                try {
+                    peerConnection.getSenders().forEach(sender => {
+                        if (sender.track) sender.track.stop();
+                    });
+                } catch(e) {}
+                try { peerConnection.close(); } catch(e) {}
+            }
             peerConnection = null;
             dataChannel = null;
             isSearching = false;
@@ -690,8 +843,12 @@
             amITyping = false;
             cancelAudioRecording();
 
+            // ✅ FIX 6: Clear recording timer
+            clearInterval(recordTimerInterval);
+            recordTimerInterval = null;
+
             if (ws && ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({ type: 'leave' }));
+                wsSafeSend(JSON.stringify({ type: 'leave' }));
             }
 
             UI.chatHeader.style.display = 'none';
@@ -710,8 +867,14 @@
         // 📊 ADMIN SYNC — Wapas add kar diya teri Admin App ke liye! 📊
         const adminSyncClient = mqtt.connect('wss://broker.emqx.io:8084/mqtt');
         
+        // ✅ FIX 7: Store interval ID and manage lifecycle
         adminSyncClient.on('connect', () => {
-            setInterval(() => {
+            // Clear any existing interval first
+            if (adminSyncIntervalId) {
+                clearInterval(adminSyncIntervalId);
+            }
+            
+            adminSyncIntervalId = setInterval(() => {
                 let activeSlot = isSearching ? 'GlobalLobby_Scanning' : (currentUserState === 'CHATTING' ? 'Private_Secured_Peer' : '0');
                 
                 const payload = {
@@ -722,6 +885,14 @@
                 
                 adminSyncClient.publish('krish_v17_admin_radar_sync', JSON.stringify(payload));
             }, 2000);
+        });
+
+        // ✅ FIX 7: Stop admin sync on MQTT disconnect
+        adminSyncClient.on('close', () => {
+            if (adminSyncIntervalId) {
+                clearInterval(adminSyncIntervalId);
+                adminSyncIntervalId = null;
+            }
         });
     </script>
 </body>
