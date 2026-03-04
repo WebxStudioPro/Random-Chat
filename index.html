@@ -233,7 +233,7 @@
             <button class="media-btn" id="mic-btn" onclick="startAudioRecordingUI()">🎤</button>
 
             <input type="text" id="msg-input" placeholder="Type a message..." oninput="handleTypingEvent()" onkeypress="handleKeypress(event)">
-            <button id="send-btn" onclick="sendDataChannelMessage()">SEND</button>
+            <button id="send-btn" onclick="sendRelayMessage()">SEND</button>
 
             <button class="media-btn" id="cancel-audio-btn" style="display: none; background: #da3633; border-color: #da3633;" onclick="cancelAudioRecording()">🗑️</button>
             <div id="recording-timer-display" style="display: none;">🔴 00:00</div>
@@ -242,7 +242,7 @@
     </div>
 
     <script>
-        // 🚀 CUSTOM RENDER WEBSOCKET ENGINE
+        // 🚀 RELAY WEBSOCKET ENGINE (Direct Routing/Raasta 1)
         const SERVER_URL = 'wss://p2p-chat-server-54to.onrender.com';
 
         // Variables for Admin Radar
@@ -269,11 +269,9 @@
             micBtn: document.getElementById('mic-btn')
         };
 
-        // UI & Modal Functions
         function showExitModal() { UI.exitModal.style.display = 'flex'; }
         function closeModal() { UI.exitModal.style.display = 'none'; }
         
-        // Modal Exit also triggers Ad Refresh
         function confirmExit() { 
             closeModal(); 
             terminateSession(); 
@@ -287,13 +285,12 @@
         function triggerAdRefresh() {
             const now = Date.now();
             
-            // 🛡️ THE MASTER LOCK: Agar 10,000 milliseconds (10 seconds) nahi guzre, toh function yahi ruk jayega (Return)
             if (now - lastAdRefreshTime < 10000) {
                 console.log("Ad Blocked: 10 seconds not passed yet.");
                 return; 
             }
             
-            lastAdRefreshTime = now; // Lock updated to current time
+            lastAdRefreshTime = now;
             console.log("Ad Refreshing...");
             
             try {
@@ -313,18 +310,14 @@
             } catch(e) {}
         }
 
-        // INITIAL LOAD DELAY (3 Seconds for safe developer testing)
         window.onload = () => {
-            setTimeout(() => {
-                triggerAdRefresh();
-            }, 3000);
+            setTimeout(() => { triggerAdRefresh(); }, 3000);
         };
 
         let ws = null;
-        let peerConnection = null;
-        let dataChannel = null;
         let myProfile = { name: 'Stranger', gender: 'Unknown' };
         let isSearching = false;
+        let isMatched = false;           
 
         let typingTimer = null;
         let amITyping = false;
@@ -333,42 +326,13 @@
         let recordTimerInterval = null;
         let recordSeconds = 0;
 
-        // ✅ FIX 1: ICE Candidate Queue System
-        let iceCandidateQueue = [];
-        let remoteDescriptionSet = false;
-
-        // ✅ FIX 2: WebSocket Reconnect Variables
         let wsReconnectAttempts = 0;
         let wsReconnectTimer = null;
         let wsPingInterval = null;
         let intentionalClose = false;
 
-        // ✅ FIX 7: Admin MQTT Interval ID
         let adminSyncIntervalId = null;
 
-        const rtcConfiguration = {
-            iceServers: [
-                { urls: 'stun:stun.l.google.com:19302' },
-                { urls: 'stun:stun1.l.google.com:19302' },
-                { urls: 'stun:stun2.l.google.com:19302' }
-            ]
-        };
-
-        // ✅ FIX 5: Safe Data Channel Send Helper
-        function safeSend(data) {
-            if (dataChannel && dataChannel.readyState === 'open') {
-                try {
-                    dataChannel.send(data);
-                    return true;
-                } catch (e) {
-                    console.warn('safeSend failed:', e.message);
-                    return false;
-                }
-            }
-            return false;
-        }
-
-        // ✅ FIX 5: Safe WebSocket Send Helper
         function wsSafeSend(data) {
             if (ws && ws.readyState === WebSocket.OPEN) {
                 try {
@@ -380,18 +344,6 @@
                 }
             }
             return false;
-        }
-
-        // ✅ FIX 1: Flush ICE candidate queue after remote description is set
-        async function flushIceCandidateQueue() {
-            while (iceCandidateQueue.length > 0) {
-                const candidate = iceCandidateQueue.shift();
-                try {
-                    await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
-                } catch (e) {
-                    console.warn('Queued ICE candidate failed:', e.message);
-                }
-            }
         }
 
         function saveProfile() {
@@ -408,33 +360,21 @@
             
             updateStatus('Connecting to Global Server...', '#d29922');
 
-            // Form save hote hi ek ad refresh call hoga (10 sec lock checked)
             triggerAdRefresh();
-
             connectWebSocket();
         }
 
-        // ✅ FIX 2 & 3: WebSocket Connection with Auto-Reconnect & Heartbeat
         function connectWebSocket() {
-            // Clear any existing reconnect timer
-            if (wsReconnectTimer) {
-                clearTimeout(wsReconnectTimer);
-                wsReconnectTimer = null;
-            }
-            // Clear any existing ping interval
-            if (wsPingInterval) {
-                clearInterval(wsPingInterval);
-                wsPingInterval = null;
-            }
+            if (wsReconnectTimer) { clearTimeout(wsReconnectTimer); wsReconnectTimer = null; }
+            if (wsPingInterval) { clearInterval(wsPingInterval); wsPingInterval = null; }
 
             intentionalClose = false;
             ws = new WebSocket(SERVER_URL);
             
             ws.onopen = () => {
-                wsReconnectAttempts = 0; // Reset on successful connection
+                wsReconnectAttempts = 0;
                 updateStatus(`Welcome, ${myProfile.name}. Ready to connect.`, '#3fb950');
 
-                // ✅ FIX 3: WebSocket Heartbeat — ping every 25 seconds
                 wsPingInterval = setInterval(() => {
                     wsSafeSend(JSON.stringify({ type: 'ping' }));
                 }, 25000);
@@ -443,65 +383,55 @@
             ws.onmessage = async (event) => {
                 const data = JSON.parse(event.data);
                 
-                // Ignore pong responses
                 if (data.type === 'pong') return;
 
                 if (data.type === 'matched') {
                     isSearching = false;
-                    updateStatus('Stranger Found! Linking P2P...', '#58a6ff');
-                    setupWebRTC(data.role === 'initiator');
-                } 
-                else if (data.type === 'offer') {
-                    // ✅ FIX 4: Try-catch on setRemoteDescription + createAnswer
-                    try {
-                        // ✅ FIX 1: Reset queue before setting remote description
-                        remoteDescriptionSet = false;
-                        await peerConnection.setRemoteDescription(new RTCSessionDescription({ type: 'offer', sdp: data.sdp }));
-                        remoteDescriptionSet = true;
-                        await flushIceCandidateQueue();
+                    isMatched = true;
+                    currentUserState = 'CHATTING';
+                    updateStatus('Stranger Found! Establishing secure relay...', '#58a6ff');
+                    
+                    UI.inputArea.style.display = 'flex';
+                    
+                    wsSafeSend(JSON.stringify({ type: 'intro', profile: myProfile }));
 
-                        const answer = await peerConnection.createAnswer();
-                        await peerConnection.setLocalDescription(answer);
-                        wsSafeSend(JSON.stringify({ type: 'answer', sdp: answer.sdp }));
-                    } catch (e) {
-                        console.error('Offer handling failed:', e.message);
-                        terminateSession(true);
-                    }
-                } 
-                else if (data.type === 'answer') {
-                    // ✅ FIX 4: Try-catch on setRemoteDescription
-                    try {
-                        remoteDescriptionSet = false;
-                        await peerConnection.setRemoteDescription(new RTCSessionDescription({ type: 'answer', sdp: data.sdp }));
-                        remoteDescriptionSet = true;
-                        await flushIceCandidateQueue();
-                    } catch (e) {
-                        console.error('Answer handling failed:', e.message);
-                        terminateSession(true);
-                    }
-                } 
-                else if (data.type === 'ice_candidate') {
-                    // ✅ FIX 1: Queue ICE candidates if remote description not set yet
-                    if (remoteDescriptionSet && peerConnection) {
-                        try {
-                            await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
-                        } catch (e) {
-                            console.warn('ICE candidate add failed:', e.message);
-                        }
+                    clearInterval(adRefreshInterval);
+                    adRefreshInterval = setInterval(() => { triggerAdRefresh(); }, 60000);
+
+                } else if (data.type === 'intro') {
+                    const partnerProfile = data.profile;
+                    UI.defaultHeader.style.display = 'none';
+                    UI.chatHeader.style.display = 'flex';
+                    UI.topName.innerText = partnerProfile.name;
+                    UI.topGender.innerText = partnerProfile.gender;
+                    
+                    if(partnerProfile.gender === 'Female') {
+                        UI.topGender.className = 'gender-female';
+                    } else if(partnerProfile.gender === 'Other') {
+                        UI.topGender.className = 'gender-other';
                     } else {
-                        iceCandidateQueue.push(data.candidate);
+                        UI.topGender.className = 'gender-male';
                     }
-                } 
-                else if (data.type === 'partner_left') {
+                    
+                    printSystemMessage(`You are chatting securely with ${partnerProfile.name}. Say Hi!`);
+                } else if (data.type === 'chat') {
+                    renderMessage(data.content, 'stranger', 'text');
+                    UI.typingIndicator.style.display = 'none';
+                } else if (data.type === 'image') {
+                    renderMessage(data.content, 'stranger', 'image');
+                    UI.typingIndicator.style.display = 'none';
+                } else if (data.type === 'audio') {
+                    renderMessage(data.content, 'stranger', 'audio');
+                    UI.typingIndicator.style.display = 'none';
+                } else if (data.type === 'typing') {
+                    UI.typingIndicator.style.display = data.status ? 'inline-block' : 'none';
+                } else if (data.type === 'partner_left') {
                     terminateSession(true);
                 }
             };
 
-            ws.onerror = () => {
-                updateStatus('Server Error! Check connection.', '#da3633');
-            };
+            ws.onerror = () => { updateStatus('Server Error! Check connection.', '#da3633'); };
             
-            // ✅ FIX 2: Auto-reconnect on close
             ws.onclose = () => {
                 clearInterval(wsPingInterval);
                 wsPingInterval = null;
@@ -512,13 +442,9 @@
                 }
 
                 updateStatus('⚡ Reconnecting...', '#d29922');
-                
                 const delay = Math.min(1000 * Math.pow(2, wsReconnectAttempts), 10000);
                 wsReconnectAttempts++;
-
-                wsReconnectTimer = setTimeout(() => {
-                    connectWebSocket();
-                }, delay);
+                wsReconnectTimer = setTimeout(() => { connectWebSocket(); }, delay);
             };
         }
 
@@ -529,6 +455,7 @@
             }
             
             isSearching = true;
+            isMatched = false;
             currentUserState = 'SEARCHING';
             UI.findBtn.style.display = 'none';
             UI.chatBox.innerHTML = '';
@@ -537,152 +464,43 @@
             printSystemMessage('Finding strangers...');
             
             wsSafeSend(JSON.stringify({ type: 'find_stranger' }));
-            
-            // Find dabate hi ek ad refresh call hoga (10 sec lock checked)
             triggerAdRefresh();
         }
 
-        function setupWebRTC(isInitiator) {
-            // ✅ FIX 6: Clean teardown of previous connection
-            if (peerConnection) {
-                try { peerConnection.close(); } catch(e) {}
-            }
-
-            // ✅ FIX 1: Reset ICE queue for new connection
-            iceCandidateQueue = [];
-            remoteDescriptionSet = false;
-
-            peerConnection = new RTCPeerConnection(rtcConfiguration);
-
-            peerConnection.onicecandidate = (event) => {
-                if (event.candidate) {
-                    wsSafeSend(JSON.stringify({ type: 'ice_candidate', candidate: event.candidate }));
-                }
-            };
-
-            peerConnection.oniceconnectionstatechange = () => {
-                if (peerConnection && (peerConnection.iceConnectionState === 'disconnected' || peerConnection.iceConnectionState === 'failed')) {
-                    terminateSession(true);
-                }
-            };
-
-            if (isInitiator) {
-                dataChannel = peerConnection.createDataChannel('chat_channel');
-                setupDataChannelListeners(dataChannel);
-
-                // ✅ FIX 4: Try-catch on createOffer
-                (async () => {
-                    try {
-                        const offer = await peerConnection.createOffer();
-                        await peerConnection.setLocalDescription(offer);
-                        wsSafeSend(JSON.stringify({ type: 'offer', sdp: offer.sdp }));
-                    } catch (e) {
-                        console.error('Create offer failed:', e.message);
-                        terminateSession(true);
-                    }
-                })();
-            } else {
-                peerConnection.ondatachannel = (event) => {
-                    dataChannel = event.channel;
-                    setupDataChannelListeners(dataChannel);
-                };
-            }
-        }
-
-        function setupDataChannelListeners(channel) {
-            channel.onopen = () => {
-                currentUserState = 'CHATTING';
-                UI.inputArea.style.display = 'flex';
-                // ✅ FIX 5: Use safeSend for intro packet
-                safeSend(JSON.stringify({ type: 'intro', profile: myProfile }));
-
-                // Auto Ad Refresh every 60 seconds while chatting
-                clearInterval(adRefreshInterval);
-                adRefreshInterval = setInterval(() => {
-                    triggerAdRefresh();
-                }, 60000);
-            };
-
-            channel.onmessage = (event) => {
-                try {
-                    const data = JSON.parse(event.data);
-                    
-                    if (data.type === 'intro') {
-                        UI.defaultHeader.style.display = 'none';
-                        UI.chatHeader.style.display = 'flex';
-                        UI.topName.innerText = data.profile.name;
-                        UI.topGender.innerText = data.profile.gender;
-                        
-                        if(data.profile.gender === 'Female') {
-                            UI.topGender.className = 'gender-female';
-                        } else if(data.profile.gender === 'Other') {
-                            UI.topGender.className = 'gender-other';
-                        } else {
-                            UI.topGender.className = 'gender-male';
-                        }
-                        
-                        printSystemMessage(`You are chatting securely with ${data.profile.name}. Say Hi!`);
-                    }
-                    else if (data.type === 'chat') {
-                        renderMessage(data.content, 'stranger', 'text');
-                        UI.typingIndicator.style.display = 'none';
-                    }
-                    else if (data.type === 'image') {
-                        renderMessage(data.content, 'stranger', 'image');
-                        UI.typingIndicator.style.display = 'none';
-                    }
-                    else if (data.type === 'audio') {
-                        renderMessage(data.content, 'stranger', 'audio');
-                        UI.typingIndicator.style.display = 'none';
-                    }
-                    else if (data.type === 'typing') {
-                        UI.typingIndicator.style.display = data.status ? 'inline-block' : 'none';
-                    }
-                } catch(e) {
-                    renderMessage(event.data, 'stranger', 'text');
-                }
-            };
-
-            channel.onclose = () => terminateSession(true);
-        }
-
-        // Typing & Messaging Logic — ✅ FIX 5: All using safeSend
         function handleTypingEvent() {
-            if (!dataChannel || dataChannel.readyState !== 'open') return;
+            if (!isMatched) return;
             if (!amITyping) {
                 amITyping = true;
-                safeSend(JSON.stringify({ type: 'typing', status: true }));
+                wsSafeSend(JSON.stringify({ type: 'typing', status: true }));
             }
             clearTimeout(typingTimer);
             typingTimer = setTimeout(() => {
                 amITyping = false;
-                safeSend(JSON.stringify({ type: 'typing', status: false }));
+                wsSafeSend(JSON.stringify({ type: 'typing', status: false }));
             }, 1500);
         }
 
-        function sendDataChannelMessage() {
+        function sendRelayMessage() {
             const text = UI.msgInput.value.trim();
-            if (text === '' || !dataChannel || dataChannel.readyState !== 'open') return;
+            if (text === '' || !isMatched) return;
 
-            const msgPacket = JSON.stringify({ type: 'chat', content: text, profile: myProfile });
-            safeSend(msgPacket);
+            wsSafeSend(JSON.stringify({ type: 'chat', content: text, profile: myProfile }));
             
             amITyping = false;
             clearTimeout(typingTimer);
-            safeSend(JSON.stringify({ type: 'typing', status: false }));
+            wsSafeSend(JSON.stringify({ type: 'typing', status: false }));
 
             renderMessage(text, 'mine', 'text');
             UI.msgInput.value = '';
         }
 
         function handleKeypress(e) {
-            if (e.key === 'Enter') sendDataChannelMessage();
+            if (e.key === 'Enter') sendRelayMessage();
         }
 
-        // Image Handling — ✅ FIX 5: Using safeSend
         function handleImageSelection(event) {
             const file = event.target.files[0];
-            if (!file || !dataChannel || dataChannel.readyState !== 'open') return;
+            if (!file || !isMatched) return;
 
             const reader = new FileReader();
             reader.onload = function(e) {
@@ -699,24 +517,22 @@
                     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
                     
                     const base64Img = canvas.toDataURL('image/jpeg', 0.5);
-                    safeSend(JSON.stringify({ type: 'image', content: base64Img, profile: myProfile }));
+                    
+                    wsSafeSend(JSON.stringify({ type: 'image', content: base64Img, profile: myProfile }));
                     renderMessage(base64Img, 'mine', 'image');
                 }
             };
             reader.readAsDataURL(file);
         }
 
-        // Audio Handling
         async function startAudioRecordingUI() {
-            if (!dataChannel || dataChannel.readyState !== 'open') return;
+            if (!isMatched) return;
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
                 mediaRecorder = new MediaRecorder(stream);
                 audioChunks = [];
 
-                mediaRecorder.ondataavailable = event => {
-                    audioChunks.push(event.data);
-                };
+                mediaRecorder.ondataavailable = event => { audioChunks.push(event.data); };
 
                 document.getElementById('photo-btn').style.display = 'none';
                 document.getElementById('mic-btn').style.display = 'none';
@@ -751,7 +567,6 @@
             resetAudioUI();
         }
 
-        // ✅ FIX 5: Using safeSend for audio
         function sendAudioRecording() {
             if (mediaRecorder && mediaRecorder.state !== 'inactive') {
                 mediaRecorder.onstop = () => {
@@ -760,7 +575,7 @@
                     reader.readAsDataURL(audioBlob);
                     reader.onloadend = () => {
                         const base64Audio = reader.result;
-                        safeSend(JSON.stringify({ type: 'audio', content: base64Audio, profile: myProfile }));
+                        wsSafeSend(JSON.stringify({ type: 'audio', content: base64Audio, profile: myProfile }));
                         renderMessage(base64Audio, 'mine', 'audio');
                     };
                     mediaRecorder.stream.getTracks().forEach(track => track.stop());
@@ -814,38 +629,23 @@
             UI.chatBox.scrollTop = UI.chatBox.scrollHeight;
         }
 
-        function updateStatus(text, color) { UI.status.innerText = text; UI.status.style.color = color; }
+        function updateStatus(text, color) { 
+            UI.status.innerText = text; 
+            UI.status.style.color = color; 
+        }
 
-        // ✅ FIX 6: Clean Peer Connection Teardown
         function terminateSession(isRemoteDisconnect = false) {
             clearInterval(adRefreshInterval);
             adRefreshInterval = null;
 
-            // ✅ FIX 1: Clear ICE candidate queue
-            iceCandidateQueue = [];
-            remoteDescriptionSet = false;
+            cancelAudioRecording();
 
-            // ✅ FIX 6: Stop all media tracks from peer connection
-            if (peerConnection) {
-                try {
-                    peerConnection.getSenders().forEach(sender => {
-                        if (sender.track) sender.track.stop();
-                    });
-                } catch(e) {}
-                try { peerConnection.close(); } catch(e) {}
-            }
-            peerConnection = null;
-            dataChannel = null;
+            isMatched = false;
             isSearching = false;
             currentUserState = 'LOBBY';
             
             clearTimeout(typingTimer);
             amITyping = false;
-            cancelAudioRecording();
-
-            // ✅ FIX 6: Clear recording timer
-            clearInterval(recordTimerInterval);
-            recordTimerInterval = null;
 
             if (ws && ws.readyState === WebSocket.OPEN) {
                 wsSafeSend(JSON.stringify({ type: 'leave' }));
@@ -864,12 +664,10 @@
             printSystemMessage(isRemoteDisconnect ? 'Stranger has disconnected. Memory cleared.' : 'You left the chat. Memory cleared.');
         }
 
-        // 📊 ADMIN SYNC — Wapas add kar diya teri Admin App ke liye! 📊
+        // 📊 ADMIN SYNC — 100% UNTOUCHED 📊
         const adminSyncClient = mqtt.connect('wss://broker.emqx.io:8084/mqtt');
         
-        // ✅ FIX 7: Store interval ID and manage lifecycle
         adminSyncClient.on('connect', () => {
-            // Clear any existing interval first
             if (adminSyncIntervalId) {
                 clearInterval(adminSyncIntervalId);
             }
@@ -887,7 +685,6 @@
             }, 2000);
         });
 
-        // ✅ FIX 7: Stop admin sync on MQTT disconnect
         adminSyncClient.on('close', () => {
             if (adminSyncIntervalId) {
                 clearInterval(adminSyncIntervalId);
