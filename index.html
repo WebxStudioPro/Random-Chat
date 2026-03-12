@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     
     <meta name="google-site-verification" content="87zIiOu8V4ybkIjdxacQm0x9CX2RwrOvYJRU8v_ZYp4" />
 
@@ -41,6 +41,9 @@
         
         body { background-color: #0d1117; color: #c9d1d9; display: flex; flex-direction: column; height: 100vh; height: 100dvh; overflow: hidden; }
         
+        /* 🔥 NEW MAIN TAG WRAPPER STYLING 🔥 */
+        main { display: flex; flex-direction: column; flex: 1; overflow: hidden; width: 100%; }
+
         /* 🔥 SPACER FOR ADSTERRA ADS (140px HEIGHT) 🔥 */
         #ad-spacer { width: 100%; min-height: 140px; flex-shrink: 0; background: transparent; display: flex; justify-content: center; align-items: center; overflow: hidden;}
 
@@ -78,7 +81,6 @@
         .terms-group input[type="checkbox"] { width: 20px; height: 20px; margin-top: 1px; accent-color: #58a6ff; cursor: pointer;}
         .terms-group label { color: #8b949e; font-size: 12px; line-height: 1.5; text-transform: none; letter-spacing: normal; font-weight: normal;}
         
-        /* 🔥 NEW LINK STYLING 🔥 */
         .terms-link { color: #58a6ff; text-decoration: underline; cursor: pointer; font-weight: bold;}
         .terms-link:hover { color: #79c0ff; }
         
@@ -86,12 +88,12 @@
         #save-profile-btn:active { background: #2ea043; transform: scale(0.97); box-shadow: 0 4px 10px rgba(35, 134, 54, 0.4);}
         
         .seo-article { width: 100%; max-width: 700px; margin-top: 40px; margin-bottom: 20px; padding: 20px; color: #8b949e; flex-shrink: 0; text-align: left;}
-        .seo-article h1, .seo-article h2 { color: #c9d1d9; font-size: 18px; margin-bottom: 12px; font-weight: bold;}
-        .seo-article h3 { color: #c9d1d9; font-size: 15px; margin-top: 20px; margin-bottom: 8px;}
+        .seo-article h1 { color: #c9d1d9; font-size: 18px; margin-bottom: 12px; font-weight: bold;}
+        /* 🔥 FIX 4: H2 Styling updated to replace H3 for SEO Order 🔥 */
+        .seo-article h2 { color: #c9d1d9; font-size: 15px; margin-top: 20px; margin-bottom: 8px; font-weight: bold;}
         .seo-article p { font-size: 13px; line-height: 1.6; margin-bottom: 15px;}
         .seo-article strong { color: #58a6ff; font-weight: normal;}
 
-        /* 🔥 PREMIUM FOOTER CSS 🔥 */
         .footer-links { text-align: center; padding: 20px 10px; margin-top: auto; font-size: 12px; color: #8b949e; width: 100%; border-top: 1px solid #30363d; background: #0d1117;}
         .footer-links a { color: #58a6ff; text-decoration: none; margin: 0 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px;}
         .footer-links a:hover { text-decoration: underline; color: #79c0ff;}
@@ -162,90 +164,91 @@
         </div>
     </div>
 
-    <div id="exit-modal-overlay" class="modal-overlay">
-        <div class="modal-box" style="text-align: center;">
-            <h3>Exit Secure Chat?</h3>
-            <p style="color: #8b949e; font-size: 14px; margin-bottom: 25px;">Are you sure you want to disconnect? This P2P session will be destroyed forever.</p>
-            <div class="modal-buttons">
-                <button class="btn-cancel" onclick="closeModal()">Cancel</button>
-                <button class="btn-leave" onclick="confirmExit()">Disconnect</button>
+    <main>
+        <div id="exit-modal-overlay" class="modal-overlay">
+            <div class="modal-box" style="text-align: center;">
+                <h3>Exit Secure Chat?</h3>
+                <p style="color: #8b949e; font-size: 14px; margin-bottom: 25px;">Are you sure you want to disconnect? This P2P session will be destroyed forever.</p>
+                <div class="modal-buttons">
+                    <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+                    <button class="btn-leave" onclick="confirmExit()">Disconnect</button>
+                </div>
             </div>
         </div>
-    </div>
 
-    <div id="setup-container">
-        <div class="setup-box">
-            <h3>Create Your Profile</h3>
-            <div class="input-group">
-                <label>Nickname</label>
-                <input type="text" id="user-name" class="profile-input" placeholder="Enter a display name..." maxlength="15">
-            </div>
-            <div class="input-group">
-                <label>Identity / Gender</label>
-                <select id="user-gender" class="profile-input">
-                    <option value="Male">Male</option>
-                    <option value="Female">Female</option>
-                    <option value="Other">Other</option>
-                </select>
-            </div>
-            
-            <div class="terms-group">
-                <input type="checkbox" id="terms-checkbox">
-                <label>I am 18+ and accept the <a href="terms.html" target="_blank" class="terms-link" onclick="triggerAdRefresh()">Terms of Service</a> and <a href="privacy.html" target="_blank" class="terms-link" onclick="triggerAdRefresh()">Privacy Policy</a>. I understand violations result in a permanent ban.</label>
+        <div id="setup-container">
+            <div class="setup-box">
+                <h3>Create Your Profile</h3>
+                <div class="input-group">
+                    <label for="user-name">Nickname</label>
+                    <input type="text" id="user-name" class="profile-input" placeholder="Enter a display name..." maxlength="15">
+                </div>
+                <div class="input-group">
+                    <label for="user-gender">Identity / Gender</label>
+                    <select id="user-gender" class="profile-input">
+                        <option value="Male">Male</option>
+                        <option value="Female">Female</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
+                
+                <div class="terms-group">
+                    <input type="checkbox" id="terms-checkbox">
+                    <label for="terms-checkbox">I am 18+ and accept the <a href="terms.html" target="_blank" class="terms-link" onclick="triggerAdRefresh()">Terms of Service</a> and <a href="privacy.html" target="_blank" class="terms-link" onclick="triggerAdRefresh()">Privacy Policy</a>. I understand violations result in a permanent ban.</label>
+                </div>
+
+                <button id="save-profile-btn" onclick="saveProfile()">Enter Lobby</button>
             </div>
 
-            <button id="save-profile-btn" onclick="saveProfile()">Enter Lobby</button>
+            <article class="seo-article">
+                <h1>Experience the Best Random Chat Online</h1>
+                <p>Welcome to the most advanced <strong>peer to peer chat</strong> platform. If you are looking to <strong>chat with strangers</strong> securely and instantly, you have found the right place. Our <strong>online chat</strong> engine uses cutting-edge WebRTC technology to connect you directly with users worldwide, ensuring a seamless and fully anonymous experience.</p>
+                
+                <h2>Why is our Stranger Chat 100% Secure?</h2>
+                <p>Unlike traditional chat apps, our <strong>anonymous chat</strong> system does not store your private messages, images, or audio voice notes on any central server. By utilizing a direct P2P network, your data travels strictly between you and the stranger. This means your private <strong>chat with stranger</strong> sessions remain completely confidential and secure.</p>
+                
+                <h2>Lightning Fast Matchmaking</h2>
+                <p>Tired of waiting for connections? Our unique high-frequency network radar scans hundreds of global slots to find you a <strong>stranger chat</strong> partner in milliseconds. Whether you want to make new friends, practice a foreign language, or simply enjoy a quick <strong>random chat</strong>, our server-less engine ensures zero lag and instant connectivity.</p>
+            </article>
+
+            <div class="footer-links">
+                <a href="terms.html" target="_blank" onclick="triggerAdRefresh()">Terms of Service</a> | 
+                <a href="privacy.html" target="_blank" onclick="triggerAdRefresh()">Privacy Policy</a> |
+                <a href="safety.html" target="_blank" onclick="triggerAdRefresh()">Safety & Guidelines</a>
+                <br><br>
+                &copy; 2026 P2P Chat Engine. All rights reserved.
+            </div>
         </div>
 
-        <article class="seo-article">
-            <h1>Experience the Best Random Chat Online</h1>
-            <p>Welcome to the most advanced <strong>peer to peer chat</strong> platform. If you are looking to <strong>chat with strangers</strong> securely and instantly, you have found the right place. Our <strong>online chat</strong> engine uses cutting-edge WebRTC technology to connect you directly with users worldwide, ensuring a seamless and fully anonymous experience.</p>
-            
-            <h3>Why is our Stranger Chat 100% Secure?</h3>
-            <p>Unlike traditional chat apps, our <strong>anonymous chat</strong> system does not store your private messages, images, or audio voice notes on any central server. By utilizing a direct P2P network, your data travels strictly between you and the stranger. This means your private <strong>chat with stranger</strong> sessions remain completely confidential and secure.</p>
-            
-            <h3>Lightning Fast Matchmaking</h3>
-            <p>Tired of waiting for connections? Our unique high-frequency network radar scans hundreds of global slots to find you a <strong>stranger chat</strong> partner in milliseconds. Whether you want to make new friends, practice a foreign language, or simply enjoy a quick <strong>random chat</strong>, our server-less engine ensures zero lag and instant connectivity.</p>
-        </article>
-
-        <div class="footer-links">
-            <a href="terms.html" target="_blank" onclick="triggerAdRefresh()">Terms of Service</a> | 
-            <a href="privacy.html" target="_blank" onclick="triggerAdRefresh()">Privacy Policy</a> |
-            <a href="safety.html" target="_blank" onclick="triggerAdRefresh()">Safety & Guidelines</a>
-            <br><br>
-            &copy; 2026 P2P Chat Engine. All rights reserved.
+        <div id="chat-window">
+            <div class="system-message">Engine Online. Connections are end-to-end encrypted.</div>
         </div>
-    </div>
-
-    <div id="chat-window">
-        <div class="system-message">Engine Online. Connections are end-to-end encrypted.</div>
-    </div>
-    
-    <div id="action-area">
-        <button id="find-btn" onclick="initiateMatchmaking()">CONNECT TO STRANGER</button>
         
-        <div id="input-container">
-            <button id="disconnect-btn" onclick="showExitModal()">✖</button>
+        <div id="action-area">
+            <button id="find-btn" onclick="initiateMatchmaking()">CONNECT TO STRANGER</button>
             
-            <button class="media-btn" id="photo-btn" onclick="document.getElementById('image-input').click()">📷</button>
-            <input type="file" id="image-input" accept="image/*" style="display: none;" onchange="handleImageSelection(event)">
-            
-            <button class="media-btn" id="mic-btn" onclick="startAudioRecordingUI()">🎤</button>
+            <div id="input-container">
+                <button id="disconnect-btn" onclick="showExitModal()">✖</button>
+                
+                <button class="media-btn" id="photo-btn" onclick="document.getElementById('image-input').click()">📷</button>
+                <input type="file" id="image-input" accept="image/*" style="display: none;" onchange="handleImageSelection(event)">
+                
+                <button class="media-btn" id="mic-btn" onclick="startAudioRecordingUI()">🎤</button>
 
-            <input type="text" id="msg-input" placeholder="Type a message..." oninput="handleTypingEvent()" onkeypress="handleKeypress(event)">
-            <button id="send-btn" onclick="sendRelayMessage()">SEND</button>
+                <input type="text" id="msg-input" placeholder="Type a message..." oninput="handleTypingEvent()" onkeypress="handleKeypress(event)">
+                <button id="send-btn" onclick="sendRelayMessage()">SEND</button>
 
-            <button class="media-btn" id="cancel-audio-btn" style="display: none; background: #da3633; border-color: #da3633;" onclick="cancelAudioRecording()">🗑️</button>
-            <div id="recording-timer-display" style="display: none;">🔴 00:00</div>
-            <button class="media-btn" id="send-audio-btn" style="display: none; background: #238636; border-color: #238636;" onclick="sendAudioRecording()">✅</button>
+                <button class="media-btn" id="cancel-audio-btn" style="display: none; background: #da3633; border-color: #da3633;" onclick="cancelAudioRecording()">🗑️</button>
+                <div id="recording-timer-display" style="display: none;">🔴 00:00</div>
+                <button class="media-btn" id="send-audio-btn" style="display: none; background: #238636; border-color: #238636;" onclick="sendAudioRecording()">✅</button>
+            </div>
         </div>
-    </div>
+    </main>
 
     <script>
-        // 🚀 RELAY WEBSOCKET ENGINE (Direct Routing/Raasta 1)
+        // 🚀 RELAY WEBSOCKET ENGINE
         const SERVER_URL = 'wss://p2p-chat-server-54to.onrender.com';
 
-        // Variables for Admin Radar
         let mySessionId = 'peer_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
         let currentUserState = 'LOBBY';
 
@@ -278,20 +281,14 @@
             triggerAdRefresh(); 
         }
 
-        // 🔥 THE SMART 10-SECOND AD LOCK LOGIC 🔥
+        // 🔥 THE SMART 10-SECOND AD LOCK LOGIC (UNTOUCHED) 🔥
         let lastAdRefreshTime = 0;
         let adRefreshInterval = null;
         
         function triggerAdRefresh() {
             const now = Date.now();
-            
-            if (now - lastAdRefreshTime < 10000) {
-                console.log("Ad Blocked: 10 seconds not passed yet.");
-                return; 
-            }
-            
+            if (now - lastAdRefreshTime < 10000) { return; }
             lastAdRefreshTime = now;
-            console.log("Ad Refreshing...");
             
             try {
                 const spacer = document.getElementById('ad-spacer');
@@ -312,6 +309,10 @@
 
         window.onload = () => {
             setTimeout(() => { triggerAdRefresh(); }, 3000);
+            
+            // 🔥 CTO HACK: WAKE UP RENDER SERVER IN BACKGROUND 🔥
+            // Ye HTTP Request sote hue server ko jaga degi, taaki jab tak user form bhare, server connection ke liye ready ho jaye!
+            fetch('https://p2p-chat-server-54to.onrender.com').catch(() => { console.log("Server engine warming up..."); });
         };
 
         let ws = null;
